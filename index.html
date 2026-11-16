@@ -61,6 +61,7 @@
       <div class="hud-btns">
         <button class="box sm" data-open="panel-goto">Aller à</button>
         <button class="box sm" data-open="panel-outfit">Tenue</button>
+        <button class="box sm" id="btn-chat" data-open="panel-chat" title="Tchat">&#128172;<span id="chat-badge" class="hidden"></span></button>
         <button class="box sm" id="btn-switch" title="Changer de perso">&#8644;</button>
       </div>
     </header>
@@ -91,6 +92,19 @@
           <canvas width="16" height="20" data-dir="up"></canvas>
         </div>
         <div id="outfit-rows"></div>
+        <button class="btn-close">Fermer</button>
+      </div>
+    </div>
+
+    <!-- Panneau : Tchat -->
+    <div id="panel-chat" class="panel hidden">
+      <div class="box panel-box chat-box">
+        <h2>Tchat</h2>
+        <div id="chat-list"></div>
+        <form id="chat-form" autocomplete="off">
+          <input id="chat-input" type="text" maxlength="200" placeholder="Écris un message…" enterkeyhint="send">
+          <button type="submit" id="chat-send">&#10148;</button>
+        </form>
         <button class="btn-close">Fermer</button>
       </div>
     </div>

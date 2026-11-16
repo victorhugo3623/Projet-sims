@@ -1051,6 +1051,44 @@ function render(now) {
       ctx.fillStyle = '#f8e060'; ctx.fillRect(ax + 1, ay + 1, 6, 1); ctx.fillRect(ax + 2, ay + 2, 4, 1); ctx.fillRect(ax + 3, ay + 3, 2, 1);
     }
   }
+  drawBubbles(here, now);
+}
+
+/* Bulle de tchat au-dessus de la tête (quelques secondes) */
+function wrapText(text, maxW) {
+  const words = text.split(/\s+/), lines = [];
+  let line = '';
+  for (const w of words) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width <= maxW || !line) line = t;
+    else { lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines.length > 3 ? [...lines.slice(0, 2), lines[2].slice(0, -1) + '…'] : lines;
+}
+function drawBubbles(here, now) {
+  const list = here.filter(({ s }) => PERSOS[s.id].bubble && PERSOS[s.id].bubble.until > now);
+  if (!list.length) return;
+  const u = Math.max(1, Math.round(S / 3));          // 1 « pixel » de bulle
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = `${7 * u}px 'Press Start 2P', monospace`;
+  ctx.textBaseline = 'top';
+  for (const { s, p } of list) {
+    const lines = wrapText(PERSOS[s.id].bubble.text, 110 * u);
+    const lh = 10 * u, pad = 5 * u;
+    const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + pad * 2;
+    const h = lines.length * lh + pad * 2 - 3 * u;
+    const cx = (p.x - cam.x + 8) * S;
+    let x = Math.round(cx - w / 2), y = Math.round((p.y - cam.y - 12) * S - h - 6 * u);
+    x = Math.max(4, Math.min(x, cv.width - w - 4)); y = Math.max(4, y);
+    ctx.fillStyle = '#202028';
+    ctx.fillRect(x - 2 * u, y, w + 4 * u, h); ctx.fillRect(x, y - 2 * u, w, h + 4 * u);
+    ctx.fillRect(Math.round(cx) - 4 * u, y + h, 8 * u, 4 * u); ctx.fillRect(Math.round(cx) - 2 * u, y + h + 4 * u, 4 * u, 2 * u);
+    ctx.fillStyle = '#f8f8f0';
+    ctx.fillRect(x, y, w, h); ctx.fillRect(Math.round(cx) - 2 * u, y + h, 4 * u, 2 * u);
+    ctx.fillStyle = '#202028';
+    lines.forEach((l, i) => ctx.fillText(l, x + pad, y + pad + i * lh));
+  }
 }
 
 let last = performance.now();
@@ -1135,6 +1173,7 @@ function openPanel(id) {
   if (id === 'panel-goto') buildGoto();
   if (id === 'panel-outfit') buildOutfit();
   if (id === 'panel-info') buildInfo();
+  if (id === 'panel-chat') openChat();
   held.length = 0;
   $(id).classList.remove('hidden');
 }
@@ -1258,7 +1297,7 @@ function login(id) {
   showScreen('screen-game');
   resize(); updateHud(true);
   running = true;
-  netPresence(true); refreshOnlineUi();
+  netPresence(true); refreshOnlineUi(); renderChat();
   say(`Salut ${me().nom} !\nTouche l'écran pour te déplacer, ou utilise « Aller à ».`);
 }
 function logout() {
@@ -1299,6 +1338,7 @@ document.addEventListener('keydown', e => {
   const k = KEYMAP[e.key.toLowerCase()];
   if (k) { e.preventDefault(); if (dlg.open) return; if (!held.includes(k)) held.push(k); return; }
   if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (dlg.open) dialogNext(); else interactFront(); }
+  if (e.key.toLowerCase() === 't' && !dlg.open) { e.preventDefault(); openPanel('panel-chat'); }
 });
 document.addEventListener('keyup', e => {
   const k = KEYMAP[e.key.toLowerCase()];
@@ -1316,6 +1356,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) write
    Sans réseau, le jeu marche quand même (sauvegarde locale).
    ============================================================== */
 const FIREBASE_URL = 'https://jeu-sims-default-rtdb.europe-west1.firebasedatabase.app';
+// ?test dans l'adresse = base de test séparée (ne dérange pas les vraies parties)
+const DB_ROOT = new URLSearchParams(location.search).has('test') ? 'sims/test' : 'sims';
 const NET = { db: null, first: true, ready: false, online: {}, sent: {}, pres: null };
 
 function netPush(id) {
@@ -1324,14 +1366,14 @@ function netPush(id) {
   const k = JSON.stringify(d);
   if (k === NET.sent[id]) return;
   NET.sent[id] = k;
-  NET.db.ref('sims/persos/' + id).set(d).catch(e => console.warn('Envoi impossible', e));
+  NET.db.ref(DB_ROOT + '/persos/' + id).set(d).catch(e => console.warn('Envoi impossible', e));
 }
 
 function netPresence(on) {
   if (!NET.db) return;
   if (NET.pres) { NET.pres.onDisconnect().cancel(); NET.pres.remove(); NET.pres = null; }
   if (!on || !cur) return;
-  NET.pres = NET.db.ref('sims/online/' + cur).push();
+  NET.pres = NET.db.ref(DB_ROOT + '/online/' + cur).push();
   NET.pres.onDisconnect().remove();
   NET.pres.set(true);
 }
@@ -1396,14 +1438,101 @@ function refreshOnlineUi() {
   }
 }
 
+/* ---------- Tchat ----------
+   Messages dans  sims/chat/<clé>  = { de, texte, t }
+   Les clés Firebase sont triées dans l'ordre d'envoi. */
+const CHAT = { msgs: [], lastKey: '', max: 50 };
+const CHAT_READ_KEY = 'projetSims_chatLu';
+
+function chatRead() {
+  try { return JSON.parse(localStorage.getItem(CHAT_READ_KEY)) || {}; } catch (e) { return {}; }
+}
+function markChatRead() {
+  if (!cur || !CHAT.msgs.length) return;
+  const r = chatRead(); r[cur] = CHAT.msgs[CHAT.msgs.length - 1].key;
+  try { localStorage.setItem(CHAT_READ_KEY, JSON.stringify(r)); } catch (e) { /* rien */ }
+}
+function updateChatBadge() {
+  const b = $('chat-badge');
+  const lu = (cur && chatRead()[cur]) || '';
+  const n = cur ? CHAT.msgs.filter(m => m.de !== cur && m.key > lu).length : 0;
+  b.textContent = n > 9 ? '9+' : n;
+  b.classList.toggle('hidden', !n);
+}
+const chatOpen = () => !$('panel-chat').classList.contains('hidden');
+
+function renderChat() {
+  const list = $('chat-list');
+  if (!NET.db) { list.innerHTML = '<p class="chat-empty">Pas de connexion :<br>le tchat est indisponible.</p>'; return; }
+  if (!CHAT.msgs.length) { list.innerHTML = '<p class="chat-empty">Aucun message.<br>Dis bonjour !</p>'; updateChatBadge(); return; }
+  list.innerHTML = '';
+  for (const m of CHAT.msgs) {
+    const d = document.createElement('div');
+    d.className = 'chat-msg' + (m.de === cur ? ' mine' : '');
+    const who = document.createElement('div'); who.className = 'who';
+    const h = m.t ? new Date(m.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+    who.textContent = `${PERSOS[m.de] ? PERSOS[m.de].nom : '?'} ${h}`;
+    const txt = document.createElement('div'); txt.className = 'txt'; txt.textContent = m.texte;
+    d.append(who, txt); list.appendChild(d);
+  }
+  list.scrollTop = list.scrollHeight;
+  if (chatOpen()) markChatRead();
+  updateChatBadge();
+}
+function openChat() {
+  renderChat(); markChatRead(); updateChatBadge();
+  if (NET.db && window.matchMedia('(pointer: fine)').matches) setTimeout(() => $('chat-input').focus(), 50);
+}
+function onChatMessage(key, m) {
+  if (!m || typeof m.texte !== 'string' || !PERSOS[m.de]) return;
+  if (CHAT.msgs.some(x => x.key === key)) return;
+  const isNew = key > CHAT.lastKey;
+  CHAT.msgs.push({ key, de: m.de, texte: m.texte.slice(0, 200), t: m.t });
+  CHAT.msgs.sort((a, b) => (a.key < b.key ? -1 : 1));
+  if (CHAT.msgs.length > CHAT.max) CHAT.msgs.shift();
+  if (isNew) {
+    CHAT.lastKey = key;
+    // bulle au-dessus de la tête + notification
+    PERSOS[m.de].bubble = { text: m.texte, until: performance.now() + 5000 };
+    if (running && m.de !== cur && !chatOpen()) toast(`💬 ${PERSOS[m.de].nom} : ${m.texte.length > 28 ? m.texte.slice(0, 27) + '…' : m.texte}`);
+  }
+  renderChat();
+}
+function sendChat(texte) {
+  texte = texte.replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!texte || !cur || !NET.db) return;
+  NET.db.ref(DB_ROOT + '/chat').push({ de: cur, texte, t: firebase.database.ServerValue.TIMESTAMP })
+    .catch(() => toast('Message non envoyé !'));
+}
+$('chat-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const i = $('chat-input');
+  sendChat(i.value); i.value = '';
+  if (window.matchMedia('(pointer: fine)').matches) i.focus();
+});
+
+function chatStart() {
+  const q = NET.db.ref(DB_ROOT + '/chat').limitToLast(CHAT.max);
+  // d'abord l'historique (sans bulles ni notifications), puis les nouveaux messages
+  q.once('value', snap => {
+    snap.forEach(c => {
+      const m = c.val();
+      if (m && typeof m.texte === 'string' && PERSOS[m.de]) CHAT.msgs.push({ key: c.key, de: m.de, texte: m.texte.slice(0, 200), t: m.t });
+      CHAT.lastKey = c.key > CHAT.lastKey ? c.key : CHAT.lastKey;
+    });
+    renderChat();
+    q.on('child_added', c => onChatMessage(c.key, c.val()));
+  });
+}
+
 function netStart() {
   if (typeof firebase === 'undefined') { console.warn('Firebase non chargé : mode hors ligne'); return; }
   try {
     firebase.initializeApp({ databaseURL: FIREBASE_URL });
     NET.db = firebase.database();
   } catch (e) { console.warn('Firebase indisponible', e); NET.db = null; return; }
-  NET.db.ref('sims/persos').on('value', snap => applyRemote(snap.val() || {}));
-  NET.db.ref('sims/online').on('value', snap => {
+  NET.db.ref(DB_ROOT + '/persos').on('value', snap => applyRemote(snap.val() || {}));
+  NET.db.ref(DB_ROOT + '/online').on('value', snap => {
     const v = snap.val() || {};
     for (const id in PERSOS) {
       const on = !!v[id];
@@ -1414,6 +1543,7 @@ function netStart() {
     NET.ready = true;
     refreshOnlineUi();
   });
+  chatStart();
   // après une coupure réseau, on se redéclare « en ligne »
   NET.db.ref('.info/connected').on('value', snap => { if (snap.val() && cur) netPresence(true); });
 }

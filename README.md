@@ -9,7 +9,8 @@ Mini-jeu 2D façon Game Boy Color, jouable dans le navigateur (téléphone et PC
 - Touche/clique sur la carte pour te déplacer, ou utilise **Aller à** (Maison, École, Salle de sport, Jardin).
 - Touche un objet (frigo, télé, lit, tapis de course…) pour interagir.
 - **Tenue** : change les couleurs des vêtements. Touche ton avatar pour voir ta fiche.
-- Sur PC : flèches / ZQSD pour marcher, Espace ou Entrée pour interagir.
+- Sur PC : flèches / ZQSD pour marcher, Espace ou Entrée pour interagir, T pour le tchat.
+- **💬 Tchat** : écris à l'autre perso ; le message s'affiche aussi dans une bulle au-dessus de ta tête.
 
 ## Fichiers
 - `index.html` : les écrans

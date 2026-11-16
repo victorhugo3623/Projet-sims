@@ -139,6 +139,13 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .hud-btns { display: flex; gap: 6px; flex: none; }
 .hud-btns button { font-size: 8px; padding: 0 9px; height: 40px; }
 #btn-switch { font-size: 14px; font-family: system-ui, sans-serif; font-weight: bold; }
+#btn-chat { position: relative; font-size: 16px; font-family: system-ui, sans-serif; }
+#chat-badge {
+  position: absolute; top: -7px; right: -7px;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  background: #e04040; color: #fff; border: 2px solid var(--ink); border-radius: 9px;
+  font: 8px/14px 'Press Start 2P', monospace; text-align: center;
+}
 
 #toast {
   position: absolute;
@@ -234,6 +241,37 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 #info-list { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; font-size: 8px; line-height: 1.6; }
 #info-list dt { color: #666; }
 
+/* ---------- Tchat ---------- */
+.chat-box { height: min(88vh, 560px); }
+#chat-list {
+  flex: 1; min-height: 120px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px; background: #e8e8de; border: 3px solid var(--ink); border-radius: 8px;
+}
+.chat-empty { margin: auto; font-size: 8px; color: #777; text-align: center; line-height: 1.8; }
+.chat-msg { max-width: 85%; align-self: flex-start; }
+.chat-msg.mine { align-self: flex-end; text-align: right; }
+.chat-msg .who { font-size: 7px; color: #666; margin-bottom: 4px; }
+.chat-msg .txt {
+  display: inline-block; text-align: left;
+  padding: 8px 10px; background: var(--paper); border: 2px solid var(--ink); border-radius: 8px;
+  font: 14px/1.35 system-ui, sans-serif; word-break: break-word;
+  -webkit-user-select: text; user-select: text;
+}
+.chat-msg.mine .txt { background: #cfe0ff; }
+#chat-form { display: flex; gap: 8px; }
+#chat-input {
+  flex: 1; min-width: 0; padding: 10px;
+  font: 16px system-ui, sans-serif; color: var(--ink); background: #fff;
+  border: 3px solid var(--ink); border-radius: 8px;
+  -webkit-user-select: text; user-select: text;
+}
+#chat-send {
+  flex: none; width: 48px; font-size: 18px; font-family: system-ui, sans-serif;
+  background: var(--btn); border: 3px solid var(--ink); border-radius: 8px; box-shadow: 0 4px 0 var(--ink);
+}
+#chat-send:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+
 #fade {
   position: absolute;
   inset: 0;
@@ -246,5 +284,7 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 @media (max-width: 380px) {
   .hud-btns button { padding: 0 6px; font-size: 7px; }
+  .hud-btns { gap: 4px; }
+  #btn-chat { font-size: 14px; }
   #hud-name { font-size: 9px; }
 }
