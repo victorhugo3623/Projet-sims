@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#14161f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Projet Sims</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ÉCRAN 1 : choix du personnage -->
+  <section id="screen-select" class="screen menu-screen active">
+    <h1 class="title">PROJET<br>SIMS</h1>
+    <p class="box subtitle">Qui es-tu ?</p>
+    <div class="cards">
+      <button class="box card" data-perso="hakan">
+        <canvas width="16" height="20"></canvas>
+        <span class="card-name"></span>
+        <span class="card-info"></span>
+      </button>
+      <button class="box card" data-perso="peline">
+        <canvas width="16" height="20"></canvas>
+        <span class="card-name"></span>
+        <span class="card-info"></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ÉCRAN 2 : code -->
+  <section id="screen-code" class="screen menu-screen">
+    <div id="code-box" class="box">
+      <canvas id="code-avatar" width="16" height="20"></canvas>
+      <p id="code-title"></p>
+      <div id="code-dots"></div>
+      <p id="code-error"></p>
+      <div class="keypad">
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+        <button data-k="del">&lt;</button><button data-k="0">0</button><button data-k="ok">OK</button>
+      </div>
+      <button id="code-back" class="btn-link">&lt; Retour</button>
+    </div>
+  </section>
+
+  <!-- ÉCRAN 3 : le jeu -->
+  <section id="screen-game" class="screen">
+    <canvas id="game"></canvas>
+
+    <header id="hud">
+      <button id="hud-perso" class="box sm">
+        <canvas id="hud-avatar" width="16" height="20"></canvas>
+        <span><b id="hud-name"></b><small id="hud-place"></small></span>
+      </button>
+      <div class="hud-btns">
+        <button class="box sm" data-open="panel-goto">Aller à</button>
+        <button class="box sm" data-open="panel-outfit">Tenue</button>
+        <button class="box sm" id="btn-switch" title="Changer de perso">&#8644;</button>
+      </div>
+    </header>
+
+    <div id="toast" class="box sm"></div>
+
+    <div id="dialog" class="box hidden">
+      <p id="dialog-text"></p>
+      <span class="arrow">&#9660;</span>
+    </div>
+
+    <!-- Panneau : Aller à -->
+    <div id="panel-goto" class="panel hidden">
+      <div class="box panel-box">
+        <h2>Aller à…</h2>
+        <div id="dest-list" class="dest-list"></div>
+        <button class="btn-close">Fermer</button>
+      </div>
+    </div>
+
+    <!-- Panneau : Tenue -->
+    <div id="panel-outfit" class="panel hidden">
+      <div class="box panel-box">
+        <h2>Tenue</h2>
+        <div class="outfit-preview">
+          <canvas width="16" height="20" data-dir="down"></canvas>
+          <canvas width="16" height="20" data-dir="left"></canvas>
+          <canvas width="16" height="20" data-dir="up"></canvas>
+        </div>
+        <div id="outfit-rows"></div>
+        <button class="btn-close">Fermer</button>
+      </div>
+    </div>
+
+    <!-- Panneau : Fiche perso -->
+    <div id="panel-info" class="panel hidden">
+      <div class="box panel-box">
+        <h2 id="info-title">Fiche</h2>
+        <div class="info-top"><canvas id="info-avatar" width="16" height="20"></canvas></div>
+        <dl id="info-list"></dl>
+        <button class="btn-close">Fermer</button>
+      </div>
+    </div>
+
+    <div id="fade"></div>
+  </section>
+
+  <script src="game.js"></script>
+</body>
+</html>
