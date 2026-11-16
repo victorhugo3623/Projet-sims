@@ -1462,6 +1462,7 @@ function updateChatBadge() {
 const chatOpen = () => !$('panel-chat').classList.contains('hidden');
 
 function renderChat() {
+  renderFeed();
   const list = $('chat-list');
   if (!NET.db) { list.innerHTML = '<p class="chat-empty">Pas de connexion :<br>le tchat est indisponible.</p>'; return; }
   if (!CHAT.msgs.length) { list.innerHTML = '<p class="chat-empty">Aucun message.<br>Dis bonjour !</p>'; updateChatBadge(); return; }
@@ -1479,6 +1480,35 @@ function renderChat() {
   if (chatOpen()) markChatRead();
   updateChatBadge();
 }
+
+/* Tchat global toujours visible (les derniers messages) */
+const FEED_KEY = 'projetSims_feedMini';
+let feedLastKey = '';
+function renderFeed() {
+  const box = $('chat-feed'), list = $('feed-list');
+  box.classList.toggle('hidden', !NET.db);
+  if (!NET.db) return;
+  const last = CHAT.msgs.slice(-4);
+  list.innerHTML = '';
+  if (!last.length) list.innerHTML = '<div class="empty">Aucun message pour l\'instant.</div>';
+  for (const m of last) {
+    const d = document.createElement('div');
+    d.className = `line ${m.de}` + (m.key > feedLastKey && feedLastKey ? ' fresh' : '');
+    const b = document.createElement('b'); b.textContent = PERSOS[m.de].nom + ' : ';
+    d.append(b, document.createTextNode(m.texte));
+    list.appendChild(d);
+  }
+  if (last.length) feedLastKey = last[last.length - 1].key;
+}
+function setFeedMini(mini) {
+  $('chat-feed').classList.toggle('mini', mini);
+  $('feed-toggle').innerHTML = mini ? '&#43;' : '&#8211;';
+  try { localStorage.setItem(FEED_KEY, mini ? '1' : ''); } catch (e) { /* rien */ }
+}
+$('feed-toggle').addEventListener('click', e => { e.stopPropagation(); setFeedMini(!$('chat-feed').classList.contains('mini')); });
+$('feed-write').addEventListener('click', () => openPanel('panel-chat'));
+$('feed-list').addEventListener('click', () => openPanel('panel-chat'));
+try { setFeedMini(!!localStorage.getItem(FEED_KEY)); } catch (e) { /* rien */ }
 function openChat() {
   renderChat(); markChatRead(); updateChatBadge();
   if (NET.db && window.matchMedia('(pointer: fine)').matches) setTimeout(() => $('chat-input').focus(), 50);
@@ -1494,7 +1524,7 @@ function onChatMessage(key, m) {
     CHAT.lastKey = key;
     // bulle au-dessus de la tête + notification
     PERSOS[m.de].bubble = { text: m.texte, until: performance.now() + 5000 };
-    if (running && m.de !== cur && !chatOpen()) toast(`💬 ${PERSOS[m.de].nom} : ${m.texte.length > 28 ? m.texte.slice(0, 27) + '…' : m.texte}`);
+    if (running && m.de !== cur && !chatOpen() && $('chat-feed').classList.contains('mini')) toast(`💬 ${PERSOS[m.de].nom} : ${m.texte.length > 28 ? m.texte.slice(0, 27) + '…' : m.texte}`);
   }
   renderChat();
 }
