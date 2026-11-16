@@ -132,6 +132,10 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 #hud-avatar { width: 32px; height: 40px; flex: none; }
 #hud-name { display: block; font-size: 10px; }
 #hud-place { display: block; font-size: 7px; color: #555; margin-top: 7px; white-space: nowrap; }
+#hud-other { display: block; font-size: 7px; color: #999; margin-top: 5px; white-space: nowrap; }
+#hud-other:empty { display: none; }
+#hud-other.on, .net-state.on { color: #2e9a4a; }
+.net-state { color: #999; }
 .hud-btns { display: flex; gap: 6px; flex: none; }
 .hud-btns button { font-size: 8px; padding: 0 9px; height: 40px; }
 #btn-switch { font-size: 14px; font-family: system-ui, sans-serif; font-weight: bold; }

@@ -868,6 +868,7 @@ function writeSave() {
     s[id] = { scene: a.scene, x: a.x, y: a.y, dir: a.dir, tenue: PERSOS[id].tenue };
   }
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch (e) { /* stockage indisponible */ }
+  if (cur) netPush(cur);
 }
 
 /* ---------- Déplacements ---------- */
@@ -876,6 +877,7 @@ function startMove(a, [nx, ny]) {
   a.dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
   a.fromX = a.x; a.fromY = a.y; a.x = nx; a.y = ny;
   a.moving = true; a.t = 0; a.steps++;
+  if (a.id === cur) netPush(a.id);
 }
 function arrive(a) {
   const d = tileDef(a.scene, a.x, a.y);
@@ -943,7 +945,8 @@ function doAction(a) {
   a.dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
   const o = otherAt(a.scene, tx, ty);
   if (o) {
-    say(`C'est ${o.nom} ! ${o.fem ? 'Elle' : 'Il'} attend sans bouger.\n(Connecte-toi avec ${o.nom} pour ${o.fem ? 'la' : 'le'} jouer.)`);
+    if (NET.online[o.id]) say(`C'est ${o.nom} ! ${o.fem ? 'Elle' : 'Il'} est en ligne en ce moment.`);
+    else say(`C'est ${o.nom} ! ${o.fem ? 'Elle' : 'Il'} attend sans bouger.\n(${o.fem ? 'Elle' : 'Il'} n'est pas connecté${o.fem ? 'e' : ''}.)`);
     return;
   }
   const d = tileDef(a.scene, tx, ty);
@@ -1053,7 +1056,7 @@ function render(now) {
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (running) { update(dt); render(now); updateHud(); }
+  if (running) { updateOthers(dt); update(dt); render(now); updateHud(); }
   requestAnimationFrame(loop);
 }
 
@@ -1199,7 +1202,7 @@ function setupSelect() {
   document.querySelectorAll('.card').forEach(card => {
     const id = card.dataset.perso, p = PERSOS[id];
     card.querySelector('.card-name').textContent = p.nom;
-    card.querySelector('.card-info').innerHTML = `${age(p.naissance)} ans<br>${p.fiche[0][1]}`;
+    card.querySelector('.card-info').innerHTML = `${age(p.naissance)} ans<br>${p.fiche[0][1]}<br><span class="net-state"></span>`;
     card.addEventListener('click', () => openCode(id));
   });
   setInterval(() => {
@@ -1255,12 +1258,14 @@ function login(id) {
   showScreen('screen-game');
   resize(); updateHud(true);
   running = true;
+  netPresence(true); refreshOnlineUi();
   say(`Salut ${me().nom} !\nTouche l'écran pour te déplacer, ou utilise « Aller à ».`);
 }
 function logout() {
   const a = actor();
   if (a) { a.path = []; a.goal = null; a.action = null; a.moving = false; a.fromX = a.x; a.fromY = a.y; }
   writeSave();
+  netPresence(false);
   running = false; cur = null; marker = null; held.length = 0;
   dlg.open = false; el.dialog.classList.add('hidden'); closePanels();
   try { sessionStorage.removeItem('projetSims_cur'); } catch (e) { /* rien */ }
@@ -1304,11 +1309,122 @@ window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
 
 /* ==============================================================
-   9) DÉMARRAGE
+   9) EN DIRECT (Firebase Realtime Database)
+   --------------------------------------------------------------
+   Position + tenue de chaque perso dans  sims/persos/<id>
+   Présence (qui est connecté)        dans  sims/online/<id>/<connexion>
+   Sans réseau, le jeu marche quand même (sauvegarde locale).
+   ============================================================== */
+const FIREBASE_URL = 'https://jeu-sims-default-rtdb.europe-west1.firebasedatabase.app';
+const NET = { db: null, first: true, ready: false, online: {}, sent: {}, pres: null };
+
+function netPush(id) {
+  if (!NET.db) return;
+  const a = st(id), d = { scene: a.scene, x: a.x, y: a.y, dir: a.dir, tenue: { ...PERSOS[id].tenue } };
+  const k = JSON.stringify(d);
+  if (k === NET.sent[id]) return;
+  NET.sent[id] = k;
+  NET.db.ref('sims/persos/' + id).set(d).catch(e => console.warn('Envoi impossible', e));
+}
+
+function netPresence(on) {
+  if (!NET.db) return;
+  if (NET.pres) { NET.pres.onDisconnect().cancel(); NET.pres.remove(); NET.pres = null; }
+  if (!on || !cur) return;
+  NET.pres = NET.db.ref('sims/online/' + cur).push();
+  NET.pres.onDisconnect().remove();
+  NET.pres.set(true);
+}
+
+/* Place le perso directement sur la case (sans animation) */
+function snapTo(s, d) {
+  Object.assign(s, { scene: d.scene, x: d.x, y: d.y, fromX: d.x, fromY: d.y, dir: d.dir || s.dir, moving: false, t: 0, path: [], net: null });
+}
+
+/* Reçoit l'état partagé des persos */
+function applyRemote(all) {
+  for (const id in PERSOS) {
+    const d = all[id];
+    if (!d || !SCENES[d.scene] || !tileDef(d.scene, d.x, d.y)) continue;
+    const p = PERSOS[id], s = st(id);
+    if (id === cur) {
+      // au démarrage seulement : on reprend là où ce perso s'était arrêté (autre appareil)
+      if (NET.first && !s.moving && !s.path.length && !busy) {
+        snapTo(s, d);
+        if (d.tenue) { Object.assign(p.tenue, d.tenue); buildSprites(id); paintSprite(el.hudAvatar, id); }
+        updateHud(true);
+      }
+      continue;
+    }
+    if (d.tenue && ['haut', 'bas', 'chaussures'].some(k => d.tenue[k] && d.tenue[k] !== p.tenue[k])) {
+      Object.assign(p.tenue, d.tenue); buildSprites(id);
+    }
+    if (!running) snapTo(s, d); else s.net = d;
+  }
+  NET.first = false;
+}
+
+/* Fait marcher l'autre perso jusqu'à sa position reçue */
+function updateOthers(dt) {
+  for (const id in PERSOS) {
+    if (id === cur) continue;
+    const s = st(id);
+    if (s.moving) {
+      s.t += dt / STEP_TIME;
+      if (s.t < 1) continue;
+      s.moving = false; s.t = 0;
+    }
+    const d = s.net;
+    if (!d) continue;
+    if (d.scene === s.scene && d.x === s.x && d.y === s.y) { s.dir = d.dir || s.dir; s.net = null; continue; }
+    const path = d.scene === s.scene ? findPath(s.scene, s.x, s.y, [[d.x, d.y]]) : null;
+    if (path && path.length && path.length <= 6) startMove(s, path[0]);
+    else snapTo(s, d);
+  }
+}
+
+function refreshOnlineUi() {
+  document.querySelectorAll('.card').forEach(card => {
+    const on = !!NET.online[card.dataset.perso], n = card.querySelector('.net-state');
+    if (n) { n.textContent = NET.db ? (on ? '● en ligne' : '○ hors ligne') : ''; n.classList.toggle('on', on); }
+  });
+  const other = cur && Object.keys(PERSOS).find(id => id !== cur), h = $('hud-other');
+  if (h) {
+    const on = other && NET.online[other];
+    h.textContent = other && NET.db ? `${on ? '●' : '○'} ${PERSOS[other].nom}` : '';
+    h.classList.toggle('on', !!on);
+  }
+}
+
+function netStart() {
+  if (typeof firebase === 'undefined') { console.warn('Firebase non chargé : mode hors ligne'); return; }
+  try {
+    firebase.initializeApp({ databaseURL: FIREBASE_URL });
+    NET.db = firebase.database();
+  } catch (e) { console.warn('Firebase indisponible', e); NET.db = null; return; }
+  NET.db.ref('sims/persos').on('value', snap => applyRemote(snap.val() || {}));
+  NET.db.ref('sims/online').on('value', snap => {
+    const v = snap.val() || {};
+    for (const id in PERSOS) {
+      const on = !!v[id];
+      if (NET.ready && running && id !== cur && on !== !!NET.online[id])
+        toast(on ? `${PERSOS[id].nom} vient de se connecter !` : `${PERSOS[id].nom} s'est déconnecté${PERSOS[id].fem ? 'e' : ''}.`);
+      NET.online[id] = on;
+    }
+    NET.ready = true;
+    refreshOnlineUi();
+  });
+  // après une coupure réseau, on se redéclare « en ligne »
+  NET.db.ref('.info/connected').on('value', snap => { if (snap.val() && cur) netPresence(true); });
+}
+
+/* ==============================================================
+   10) DÉMARRAGE
    ============================================================== */
 for (const id in SCENES) renderScene(id);
 loadSave();
 for (const id in PERSOS) buildSprites(id);
+netStart();
 setupSelect();
 resize();
 (function restoreSession() {

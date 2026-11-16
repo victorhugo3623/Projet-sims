@@ -16,4 +16,7 @@ Mini-jeu 2D façon Game Boy Color, jouable dans le navigateur (téléphone et PC
 - `style.css` : le style
 - `game.js` : le jeu (personnages, cartes, dessins pixel art, moteur)
 
-La sauvegarde se fait dans le navigateur (localStorage).
+## En direct
+Les positions et les tenues sont partagées en temps réel via Firebase Realtime Database
+(projet « jeu sims », données sous `sims/`). Si Hakan et Peline jouent en même temps,
+chacun voit l'autre bouger. Sans connexion, le jeu marche quand même avec la sauvegarde du navigateur.
