@@ -81,6 +81,7 @@ const DESTINATIONS = [
                x tableau  e bureau élève  M bureau prof  Z casiers
                a fontaine  y miroir  R tapis de course  N banc muscu
                U haltères  I sac de frappe
+               cc cage à perruches (2 cases côte à côte)
    ============================================================== */
 const SCENES = {
   town: {
@@ -125,7 +126,7 @@ const SCENES = {
       '#::hh::#_______#',
       '#::::::#_______#',
       '####:####_######',
-      '#k___V____#H:lj#',
+      '#k___V_cc_#H:lj#',
       '#__mmmm___#::::#',
       '#P__qQ____:::::#',
       '#_________#::::#',
@@ -498,6 +499,11 @@ function bookshelf() {
     for (let x = 2, k = y; x < 14; x += 2, k++) R(cols[k % cols.length], x, y + (k % 2), 2, h - (k % 2));
   }
 }
+function cageTile(i) {
+  // ombre au sol sous le pied de la cage (la cage elle-même est dessinée en direct)
+  if (i.at(-1, 0) !== 'c') R('rgba(0,0,0,.18)', 4, 14, 12, 2);
+  else R('rgba(0,0,0,.18)', 0, 14, 12, 2);
+}
 function plant() {
   R('#5a2e18', 4, 10, 8, 6); R('#c8683a', 5, 11, 6, 4); R('#e08850', 4, 9, 8, 2);
   R('#1f4a2a', 2, 1, 12, 9);
@@ -617,6 +623,13 @@ tile('n', { ...FURN, draw: bedBottom, msg: ['{n} fait une petite sieste… Zzz�
 tile('z', { ...FURN, draw: wardrobe, msg: ['L\'armoire est pleine de vêtements.'] });
 tile('i', { ...FURN, draw: nightstand, msg: ['Une lampe de chevet.'] });
 tile('k', { ...FURN, draw: bookshelf, msg: ['Plein de livres… {n} en feuillette un.'] });
+tile('c', { ...FURN, draw: cageTile, msg: [
+  'Les 4 perruches gazouillent : cui-cui !',
+  '{n} donne des graines aux perruches. Elles se régalent !',
+  '{n} change l\'eau de la cage. Les perruches viennent boire.',
+  'Une perruche bleue fait coucou à {n} !',
+  '{n} siffle un air… les perruches répondent !',
+] });
 tile('P', { ...FURN, draw: plant, msg: ['Une jolie plante verte.'] });
 tile('H', { ...FURN, under: ':', draw: shower, msg: ['{n} prend une douche bien chaude.'] });
 tile('l', { ...FURN, under: ':', draw: washbasin, msg: ['{n} se lave les mains.'] });
@@ -951,6 +964,7 @@ function doAction(a) {
   }
   const d = tileDef(a.scene, tx, ty);
   if (d && d.msg) say(pick(d.msg).replace(/\{n\}/g, me().nom));
+  if (tileChar(a.scene, tx, ty) === 'c') cageExcite = performance.now() + 2500;
 }
 function onTap(tx, ty) {
   const a = actor();
@@ -1022,6 +1036,7 @@ function render(now) {
   cam.x = Math.round(cx); cam.y = Math.round(cy);
 
   ctx.drawImage(sc.canvas, -cam.x, -cam.y);
+  drawCages(a.scene, now);
 
   // marqueur de destination
   if (marker && Math.floor(now / 220) % 2 === 0) {
@@ -1052,6 +1067,76 @@ function render(now) {
     }
   }
   drawBubbles(here, now);
+}
+
+/* ---------- Cage à perruches (animée) ---------- */
+// Couleurs : corps, tête, aile, joue
+const PERRUCHES = [
+  { corps: '#6cc644', tete: '#f2e64a', aile: '#3f8a2a', joue: '#3a5ad0' },   // verte
+  { corps: '#4a90e0', tete: '#f4f4f4', aile: '#2c5aa0', joue: '#6a3ad0' },   // bleue
+  { corps: '#f2d43a', tete: '#f8ee90', aile: '#c8a020', joue: '#9a9ad8' },   // jaune
+  { corps: '#e8ecf4', tete: '#ffffff', aile: '#9aa4c0', joue: '#7a8ad8' },   // blanche
+];
+// sprite tourné vers la gauche — H tête, e œil, k bec, B corps, W aile, T queue, f pattes
+const PERRUCHE = [
+  '.HH....',
+  'kHeH...',
+  '.BBBB..',
+  '.BWWBTT',
+  '..f..T.',
+];
+const PERRUCHE_VOL = [
+  '.HH.W..',
+  'kHeHW..',
+  '.BBBB..',
+  '.BBBBTT',
+  '.....T.',
+];
+let cageExcite = 0;
+const CAGE_POS = {};
+function cagesOf(scId) {
+  if (CAGE_POS[scId]) return CAGE_POS[scId];
+  const out = [];
+  SCENES[scId].map.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === 'c' && row[x - 1] !== 'c') out.push([x, y]); });
+  return (CAGE_POS[scId] = out);
+}
+function drawCages(scId, now) {
+  for (const [tx, ty] of cagesOf(scId)) {
+    const ox = tx * TS - cam.x, oy = ty * TS - cam.y;
+    const r = (c, x, y, w = 1, h = 1) => { ctx.fillStyle = c; ctx.fillRect(ox + x, oy + y, w, h); };
+    // intérieur (fond sombre pour bien voir les oiseaux)
+    r('#5d7084', 1, -13, 30, 22); r('#6b8094', 1, -13, 30, 2);
+    // pied + plateau
+    r('#6a4224', 14, 13, 4, 3); r('#4a2e18', 10, 15, 12, 1);
+    r('#8a8a98', 0, 9, 32, 4); r('#d8d8e2', 0, 9, 32, 1); r('#b4b4c0', 1, 10, 30, 1);
+    // perchoirs, mangeoire, abreuvoir
+    r('#8a5a32', 2, -4, 14, 1); r('#8a5a32', 16, 4, 14, 1);
+    r('#e08030', 3, 6, 5, 3); r('#f0c060', 4, 6, 3, 1);
+    r('#4a7ab0', 24, 6, 5, 3); r('#a8d4f8', 25, 6, 3, 1);
+    // les 4 perruches
+    const places = [[2, -4], [9, -4], [16, 4], [23, 4]];
+    const excite = now < cageExcite;
+    PERRUCHES.forEach((col, k) => {
+      const ph = Math.floor(now / (excite ? 140 : 420)) + k * 5;
+      const h = hash(ph, k + 3);
+      const hop = excite ? (h % 2) : (h % 7 === 0 ? 1 : 0);
+      const flip = (hash(Math.floor(now / 1700) + k * 11, k) % 3 === 0);
+      const vol = excite ? h % 3 === 0 : h % 23 === 0;
+      const [px, py] = places[k];
+      const spr = vol ? PERRUCHE_VOL : PERRUCHE;
+      const pal = { H: col.tete, e: '#202028', k: '#e8b060', B: col.corps, W: col.aile, T: col.aile, f: '#b08080' };
+      for (let y = 0; y < spr.length; y++) for (let x = 0; x < spr[y].length; x++) {
+        const c = spr[y][x]; if (c === '.') continue;
+        r(pal[c], px + (flip ? 6 - x : x), py - 5 + y - hop);
+      }
+      r(col.joue, px + (flip ? 5 : 1), py - 3 - hop);   // petite tache sur la joue
+    });
+    // barreaux devant les oiseaux + toit arrondi + crochet
+    for (let x = 0; x <= 31; x += 5) r('#d8dce6', x, -13, 1, 22);
+    r('#d8dce6', 31, -13, 1, 22);
+    r('#9aa0b0', 0, -14, 32, 1); r('#c8ccd8', 2, -16, 28, 2); r('#9aa0b0', 7, -18, 18, 2);
+    r('#d8b040', 15, -21, 2, 3);
+  }
 }
 
 /* Bulle de tchat au-dessus de la tête (quelques secondes) */
@@ -1387,7 +1472,7 @@ function snapTo(s, d) {
 function applyRemote(all) {
   for (const id in PERSOS) {
     const d = all[id];
-    if (!d || !SCENES[d.scene] || !tileDef(d.scene, d.x, d.y)) continue;
+    if (!d || !SCENES[d.scene] || !walkable(d.scene, d.x, d.y)) continue;
     const p = PERSOS[id], s = st(id);
     if (id === cur) {
       // au démarrage seulement : on reprend là où ce perso s'était arrêté (autre appareil)
