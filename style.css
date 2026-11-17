@@ -312,6 +312,12 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 #chat-send:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 
+/* ---------- Animaux ---------- */
+.animal-top { display: flex; justify-content: center; align-items: flex-end; height: 70px; background: #a3d873; border: 3px solid var(--ink); border-radius: 8px; padding-bottom: 8px; }
+#animal-info { font-size: 8px; line-height: 2; text-align: center; color: #444; }
+.animal-btns { display: flex; flex-direction: column; gap: 10px; }
+.animal-btns .dest { justify-content: center; font-size: 11px; }
+
 #fade {
   position: absolute;
   inset: 0;

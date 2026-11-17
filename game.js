@@ -952,6 +952,7 @@ function interactTile(tx, ty) {
   a.path = path; a.action = { tx, ty };
 }
 function doAction(a) {
+  if (a.action.animal) { const id = a.action.animal; a.action = null; reachAnimal(a, id); return; }
   const { tx, ty } = a.action; a.action = null;
   const dx = tx - a.x, dy = ty - a.y;
   if (Math.abs(dx) + Math.abs(dy) !== 1) return;
@@ -971,6 +972,8 @@ function onTap(tx, ty) {
   const d = tileDef(a.scene, tx, ty);
   if (!d) return;
   a.goal = null; a.action = null;
+  const an = !otherAt(a.scene, tx, ty) && animalAt(a.scene, tx, ty);
+  if (an) { interactAnimal(an); marker = null; return; }
   if (otherAt(a.scene, tx, ty) || (d.solid && d.msg)) { interactTile(tx, ty); marker = null; return; }
   if (d.solid) return;
   if (tx === a.x && ty === a.y) { a.path = []; return; }
@@ -982,6 +985,8 @@ function interactFront() {
   const a = actor(); if (a.moving) return;
   const [dx, dy] = DIRV[a.dir], tx = a.x + dx, ty = a.y + dy;
   const d = tileDef(a.scene, tx, ty);
+  const an = animalAt(a.scene, tx, ty) || animalAt(a.scene, a.x, a.y);
+  if (an && !otherAt(a.scene, tx, ty)) { a.action = { animal: an.id }; return; }
   if (otherAt(a.scene, tx, ty) || (d && d.msg)) a.action = { tx, ty };
 }
 
@@ -1045,6 +1050,8 @@ function render(now) {
     for (const [x, y, w, h] of [[1, 1, 4, 1], [1, 1, 1, 4], [11, 1, 4, 1], [14, 1, 1, 4], [1, 14, 4, 1], [1, 11, 1, 4], [11, 14, 4, 1], [14, 11, 1, 4]])
       ctx.fillRect(mx + x, my + y, w, h);
   }
+
+  drawAnimals(a.scene, now);
 
   // personnages présents dans la scène (triés par profondeur)
   const here = Object.keys(PERSOS).map(st).filter(s => s.scene === a.scene)
@@ -1137,6 +1144,226 @@ function drawCages(scId, now) {
     r('#9aa0b0', 0, -14, 32, 1); r('#c8ccd8', 2, -16, 28, 2); r('#9aa0b0', 7, -18, 18, 2);
     r('#d8b040', 15, -21, 2, 3);
   }
+}
+
+/* ==============================================================
+   ANIMAUX : Rex (chien kangal) et Caramel (chat)
+   --------------------------------------------------------------
+   Ils se baladent dans le Quartier. Leur trajet est calculé à
+   partir de l'heure (serveur) : les deux joueurs les voient donc
+   au même endroit, sans rien envoyer sur le réseau.
+   ============================================================== */
+// sprites tournés vers la gauche ; les 2 dernières lignes = pattes (3 poses)
+const SPRITE_CHIEN = {
+  corps: [
+    '..EE............',
+    '.EHHE........T..',
+    '.HeHH.......T.T.',
+    'MMHHH.......TT..',
+    'MMHHHDDDDDDDDT..',
+    '.mHHBBBBBBBBBB..',
+    '...BBBBBBBBBBB..',
+    '...BSSSSSSSSSB..',
+  ],
+  pattes: [
+    ['...L..L...L..L..', '...P..P...P..P..'],
+    ['..L....L..L...L.', '..P....P..P...P.'],
+    ['....L.L....L.L..', '....P.P....P.P..'],
+  ],
+};
+const SPRITE_CHAT = {
+  corps: [
+    'E.E.........',
+    'HHH........T',
+    'HeH.......T.',
+    'kHHBBBBBBT..',
+    '.WBsBBsBB...',
+    '.WBBBBBBB...',
+  ],
+  pattes: [
+    ['.L.L..L.L...', '.P.P..P.P...'],
+    ['L..L...L.L..', 'P..P...P.P..'],
+    ['.L..L.L...L.', '.P..P.P...P.'],
+  ],
+};
+const ANIMAUX = {
+  rex: {
+    id: 'rex', nom: 'Rex', espece: 'Chien kangal', scene: 'town',
+    step: 0.38, seg: 28000, salt: 101, sprite: SPRITE_CHIEN, gamelle: '#d04040', croquettes: '#a8683a',
+    pal: { E: '#2a2420', H: '#dcbc8c', e: '#140e0a', M: '#2a2420', m: '#5a2a24', B: '#dcbc8c', D: '#c8a46e', S: '#efdcb4', T: '#c8a46e', L: '#c8a46e', P: '#a8844e' },
+    msgs: {
+      caresse: ['Rex remue la queue, trop content !', '{n} gratte Rex derrière les oreilles. Rex adore ça !', 'Rex se couche sur le dos pour avoir des câlins.', 'Rex fait un gros bisou baveux à {n} !'],
+      nourrit: ['{n} donne une gamelle de croquettes à Rex. Miam !', 'Rex dévore son repas en 10 secondes !', '{n} donne un os à Rex. Ouaf ouaf !'],
+    },
+  },
+  caramel: {
+    id: 'caramel', nom: 'Caramel', espece: 'Chat', scene: 'town',
+    step: 0.46, seg: 34000, salt: 202, sprite: SPRITE_CHAT, gamelle: '#3a6cc0', croquettes: '#a8b8c8',
+    pal: { E: '#b86e2a', H: '#e39c4c', e: '#2a7a2a', k: '#f08a9a', B: '#e39c4c', s: '#b86e2a', W: '#f8f0e0', T: '#e39c4c', L: '#e39c4c', P: '#f8f0e0' },
+    msgs: {
+      caresse: ['Caramel ronronne… rrrrr', '{n} caresse Caramel, qui ferme les yeux de bonheur.', 'Caramel se frotte contre les jambes de {n}.', 'Caramel fait des pattes de velours. Trop mignon !'],
+      nourrit: ['{n} donne du poisson à Caramel. Miaou !', 'Caramel mange sa pâtée avec appétit.', '{n} remplit la gamelle de Caramel. Miaou miaou !'],
+    },
+  },
+};
+const REPAS_MS = 60 * 60 * 1000;        // après un repas, l'animal n'a plus faim pendant 1 h
+const serverNow = () => Date.now() + (NET.offset || 0);
+
+// images des animaux (normales + retournées), construites une fois
+function buildAnimalSprites(an) {
+  const w = an.sprite.corps[0].length, h = an.sprite.corps.length + 2;
+  an.w = w; an.h = h;
+  an.img = an.sprite.pattes.map(p => {
+    const c = makeCanvas(w, h); G = c.getContext('2d');
+    pat([...an.sprite.corps, ...p], 0, 0, an.pal);
+    const f = makeCanvas(w, h), g = f.getContext('2d');
+    g.translate(w, 0); g.scale(-1, 1); g.drawImage(c, 0, 0);
+    return { left: c, right: f };
+  });
+}
+
+// cases où les animaux peuvent aller
+function animalSpots(an) {
+  if (an.spots) return an.spots;
+  const sc = SCENES[an.scene], out = [];
+  sc.map.forEach((row, y) => { for (let x = 0; x < row.length; x++) if ('.,*='.includes(row[x]) && walkable(an.scene, x, y)) out.push([x, y]); });
+  return (an.spots = out);
+}
+function animalWaypoint(an, seg) { const sp = animalSpots(an); return sp[hash(seg, an.salt) % sp.length]; }
+function animalPath(an, seg) {
+  an.paths = an.paths || new Map();
+  if (an.paths.has(seg)) return an.paths.get(seg);
+  const a = animalWaypoint(an, seg - 1), b = animalWaypoint(an, seg);
+  const maxLen = Math.floor(an.seg / 1000 / an.step) - 4;
+  let path = findPath(an.scene, a[0], a[1], [b]);
+  path = path ? [a, ...path].slice(0, maxLen) : [a];
+  // de quel côté il regarde à la fin du trajet
+  let face = 'left';
+  for (let i = path.length - 1; i > 0; i--) { const dx = path[i][0] - path[i - 1][0]; if (dx) { face = dx > 0 ? 'right' : 'left'; break; } }
+  const r = { path, face };
+  an.paths.set(seg, r);
+  if (an.paths.size > 6) an.paths.delete(an.paths.keys().next().value);
+  return r;
+}
+// position de l'animal à un instant donné (heure serveur)
+function animalState(an, t = serverNow()) {
+  const seg = Math.floor(t / an.seg), { path, face } = animalPath(an, seg);
+  const i = ((t - seg * an.seg) / 1000) / an.step;
+  if (i >= path.length - 1) { const [x, y] = path[path.length - 1]; return { x, y, moving: false, face, frame: 0 }; }
+  const k = Math.floor(i), f = i - k, [ax, ay] = path[k], [bx, by] = path[k + 1];
+  let fc = bx > ax ? 'right' : bx < ax ? 'left' : null;
+  if (!fc) { for (let j = k; j >= 1; j--) { const dx = path[j][0] - path[j - 1][0]; if (dx) { fc = dx > 0 ? 'right' : 'left'; break; } } }
+  return { x: ax + (bx - ax) * f, y: ay + (by - ay) * f, moving: true, face: fc || animalPath(an, seg - 1).face, frame: f < 0.5 ? 1 : 2 };
+}
+function animalAt(scId, tx, ty) {
+  for (const id in ANIMAUX) {
+    const an = ANIMAUX[id];
+    if (an.scene !== scId) continue;
+    const st = animalState(an);
+    if (Math.round(st.x) === tx && Math.round(st.y) === ty) return an;
+  }
+  return null;
+}
+
+const HEART = ['.X.X.', 'XXXXX', 'XXXXX', '.XXX.', '..X..'];
+function drawAnimals(scId, now) {
+  for (const id in ANIMAUX) {
+    const an = ANIMAUX[id];
+    if (an.scene !== scId) continue;
+    const st = animalState(an);
+    const px = Math.round(st.x * TS - cam.x + (TS - an.w) / 2), py = Math.round(st.y * TS - cam.y + 15 - an.h);
+    // ombre
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
+    ctx.fillRect(px + 2, py + an.h - 1, an.w - 4, 2);
+    // gamelle pendant le repas
+    const fx = an.fx && an.fx.until > now ? an.fx : null;
+    if (fx && fx.type === 'nourrit') {
+      const bx = st.face === 'left' ? px - 6 : px + an.w - 1, by = py + an.h - 3;
+      ctx.fillStyle = an.croquettes; ctx.fillRect(bx + 1, by, 5, 1);
+      ctx.fillStyle = an.gamelle; ctx.fillRect(bx, by + 1, 7, 1); ctx.fillRect(bx + 1, by + 2, 5, 1);
+    }
+    // petit sautillement / queue qui remue quand il est content
+    const joie = fx && fx.type === 'caresse' && Math.floor(now / 150) % 2 ? 1 : 0;
+    const mange = fx && fx.type === 'nourrit' && Math.floor(now / 250) % 2 ? 1 : 0;
+    ctx.drawImage(an.img[st.moving ? st.frame : 0][st.face], px, py - joie + mange);
+    // cœurs qui montent
+    if (fx && fx.type === 'caresse') {
+      const left = (fx.until - now) / 3000;
+      ctx.fillStyle = '#e8486a';
+      for (let k = 0; k < 2; k++) {
+        const t = (1 - left + k * 0.5) % 1, hx = px + an.w / 2 - 2 + (k ? 4 : -4) + Math.round(Math.sin(t * 6) * 1.5), hy = py - 4 - Math.round(t * 14);
+        for (let y = 0; y < HEART.length; y++) for (let x = 0; x < 5; x++) if (HEART[y][x] === 'X') ctx.fillRect(hx + x, hy + y, 1, 1);
+      }
+    }
+  }
+}
+
+/* --- Caresser / nourrir --- */
+let animalOuvert = null;
+function interactAnimal(an) {
+  const a = actor(), s = animalState(an), tx = Math.round(s.x), ty = Math.round(s.y);
+  if (Math.abs(tx - a.x) + Math.abs(ty - a.y) <= 1) { a.path = []; a.action = { animal: an.id }; return; }
+  const goals = [[0, -1], [1, 0], [0, 1], [-1, 0]].map(([dx, dy]) => [tx + dx, ty + dy]).filter(([x, y]) => walkable(a.scene, x, y) && !otherAt(a.scene, x, y));
+  const path = findPath(a.scene, a.x, a.y, goals);
+  if (!path) { toast('Impossible d\'y aller !'); return; }
+  a.path = path; a.action = { animal: an.id };
+}
+function reachAnimal(a, id) {
+  const an = ANIMAUX[id], s = animalState(an);
+  const dx = Math.round(s.x) - a.x, dy = Math.round(s.y) - a.y;
+  if (an.scene !== a.scene || Math.abs(dx) + Math.abs(dy) > 2) { toast(`Trop tard, ${an.nom} se balade plus loin !`); return; }
+  if (dx || dy) a.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  openAnimal(id);
+}
+function aFaim(an) { return !an.repas || serverNow() - an.repas >= REPAS_MS; }
+function openAnimal(id) {
+  const an = ANIMAUX[id]; animalOuvert = id;
+  $('animal-title').textContent = an.nom;
+  const c = $('animal-avatar'); c.width = an.w; c.height = an.h;
+  c.style.width = an.w * 4 + 'px'; c.style.height = an.h * 4 + 'px';
+  const g = c.getContext('2d'); g.clearRect(0, 0, an.w, an.h); g.drawImage(an.img[0].left, 0, 0);
+  const h = an.repas ? new Date(an.repas).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+  $('animal-info').innerHTML = `${an.espece}<br>${aFaim(an) ? '&#128523; A faim !' : `&#128522; N'a plus faim (repas à ${h})`}`;
+  held.length = 0;
+  $('panel-animal').classList.remove('hidden');
+}
+function showAnimalFx(id, type) { ANIMAUX[id].fx = { type, until: performance.now() + 3000 }; }
+function animalAct(type) {
+  const id = animalOuvert, an = ANIMAUX[id];
+  closePanels();
+  if (!an || !cur) return;
+  if (type === 'nourrit' && !aFaim(an)) { say(`${an.nom} n'a plus faim pour l'instant.\nReviens un peu plus tard !`); return; }
+  say(pick(an.msgs[type]).replace(/\{n\}/g, me().nom));
+  showAnimalFx(id, type);
+  if (type === 'nourrit') an.repas = serverNow();
+  const evtId = Math.random().toString(36).slice(2);
+  an.lastEvt = evtId;
+  if (NET.db) {
+    const up = { evt: { type, par: cur, id: evtId, t: firebase.database.ServerValue.TIMESTAMP } };
+    if (type === 'nourrit') up.repas = firebase.database.ServerValue.TIMESTAMP;
+    NET.db.ref(DB_ROOT + '/animaux/' + id).update(up).catch(() => {});
+  }
+}
+document.getElementById('btn-caresser').addEventListener('click', () => animalAct('caresse'));
+document.getElementById('btn-nourrir').addEventListener('click', () => animalAct('nourrit'));
+
+// ce que l'autre joueur fait aux animaux
+let animauxPremier = true;
+function onAnimauxDb(v) {
+  for (const id in ANIMAUX) {
+    const an = ANIMAUX[id], d = v[id];
+    if (!d) continue;
+    if (d.repas) an.repas = d.repas;
+    const e = d.evt;
+    if (e && e.id && e.id !== an.lastEvt) {
+      an.lastEvt = e.id;
+      if (!animauxPremier && e.par !== cur && PERSOS[e.par]) {
+        showAnimalFx(id, e.type);
+        if (running) toast(`${PERSOS[e.par].nom} ${e.type === 'caresse' ? 'caresse' : 'nourrit'} ${an.nom} ${e.type === 'caresse' ? '❤️' : '🍖'}`);
+      }
+    }
+  }
+  animauxPremier = false;
 }
 
 /* Bulle de tchat au-dessus de la tête (quelques secondes) */
@@ -1659,6 +1886,8 @@ function netStart() {
     refreshOnlineUi();
   });
   chatStart();
+  NET.db.ref('.info/serverTimeOffset').on('value', snap => { NET.offset = snap.val() || 0; });
+  NET.db.ref(DB_ROOT + '/animaux').on('value', snap => onAnimauxDb(snap.val() || {}));
   // après une coupure réseau, on se redéclare « en ligne »
   NET.db.ref('.info/connected').on('value', snap => { if (snap.val() && cur) netPresence(true); });
 }
@@ -1669,6 +1898,7 @@ function netStart() {
 for (const id in SCENES) renderScene(id);
 loadSave();
 for (const id in PERSOS) buildSprites(id);
+for (const id in ANIMAUX) buildAnimalSprites(ANIMAUX[id]);
 netStart();
 setupSelect();
 resize();
