@@ -70,7 +70,7 @@ const DESTINATIONS = [
    --------------------------------------------------------------
    EXTÉRIEUR : T arbre  . herbe  , hautes herbes  = chemin  * fleurs
                F clôture  v potager  B banc  p bassin  Y buisson
-               1-4 panneaux  r/u/o toits  W mur  w fenêtre
+               f pivoines  1-4 panneaux  r/u/o toits  W mur  w fenêtre
                D porte maison  E porte école  S porte salle de sport
    INTÉRIEUR : # mur  _ parquet  : carrelage  ; sol école  - sol sport
                X sortie  m tapis  g tapis de sol
@@ -91,10 +91,10 @@ const SCENES = {
       'TTTTTTTTTTTTTTTTTTTTTTTTTTTT',
       'T..,,.....,,.....,,.....,,.T',
       'T.rrrrrr.FFFFFFFFFF.uuuuuuuT',
-      'T.rrrrrr.F*.vvvv.*F.uuuuuuuT',
-      'T.WwWWwW.F..vvvv..F.WwWwWwWT',
+      'T.rrrrrr.Ff.vvvv.fF.uuuuuuuT',
+      'T.WwWWwW.Ff.vvvv.fF.WwWwWwWT',
       'T.WWWDWW.F.B...pp.F.WwWEWwWT',
-      'T..1.=...FY.*..*.YF..2.=...T',
+      'T..1.=...FYf....fYF..2.=...T',
       'T....=...FFFF4=FFFF....=...T',
       'T.========================.T',
       'T,,..=.*..,,,,,,..*...=..,,T',
@@ -283,6 +283,18 @@ function veg(i) {
     R('#2f7a34', x, y + 2, 4, 3); R('#4caa3c', x + 1, y + 1, 2, 3); R('#78d060', x + 1, y + 1, 1, 1);
     if ((x + y) % 2) R('#e84040', x + 3, y + 4, 1, 1);
   }
+}
+function peony(i) {
+  // touffe de feuilles
+  R('#2e6a2e', 2, 9, 12, 6); R('#3f8a3a', 1, 10, 14, 4); R('#58a848', 3, 10, 3, 1); R('#58a848', 10, 11, 3, 1);
+  R('#2e6a2e', 4, 14, 8, 1);
+  // 3 grosses fleurs (roses, parfois une blanche)
+  const fl = (x, y, c) => pat(['.aaa.', 'abbba', 'abcba', 'abbba', '.aaa.'], x, y, c);
+  const rose = { a: '#d8507a', b: '#f08cb0', c: '#fbd0e0' }, pale = { a: '#e07898', b: '#f8b8d0', c: '#fde8f0' }, blanche = { a: '#d8c8d0', b: '#f4eaf0', c: '#fff8fb' };
+  const v = hash(i.x, i.y);
+  fl(1, 5 + (v % 2), rose);
+  fl(6, 2, v % 3 === 0 ? blanche : pale);
+  fl(10, 6 - (v % 2), rose);
 }
 function bench(i) {
   grass(i);
@@ -584,6 +596,7 @@ tile('T', { draw: tree });
 tile('Y', { draw: bush, msg: ['Un buisson bien taillé.'] });
 tile('F', { draw: fence });
 tile('v', { draw: veg, msg: ['Des tomates et des salades poussent ici.', '{n} arrose le potager.'] });
+tile('f', { ...FURN, draw: peony, msg: ['De magnifiques pivoines. Ça sent trop bon !', '{n} sent les pivoines… mmmh !', '{n} admire les pivoines du jardin.', 'Une abeille butine les pivoines. Bzzz…'] });
 tile('B', { draw: bench, msg: ['{n} s\'assoit sur le banc et profite du soleil.'] });
 tile('p', { draw: pond, msg: ['Un petit bassin… On voit des poissons rouges !'] });
 tile('1', { draw: sign, msg: ['Panneau : « MAISON »'] });
@@ -794,6 +807,7 @@ const ctx = cv.getContext('2d');
 let S = 3, cam = { x: 0, y: 0 }, cur = null, running = false, busy = false, marker = null;
 
 const st = id => PERSOS[id].state;
+let CARRY = null;             // { porteur, porte, id } quand un perso en porte un autre
 const me = () => PERSOS[cur];
 const actor = () => st(cur);
 
@@ -801,7 +815,7 @@ function tileChar(scId, x, y) { const r = SCENES[scId].map[y]; return r ? r[x] :
 function tileDef(scId, x, y) { const c = tileChar(scId, x, y); return c ? T[c] : null; }
 function otherAt(scId, x, y) {
   for (const id in PERSOS) {
-    if (id === cur) continue;
+    if (id === cur || (CARRY && CARRY.porte === id)) continue;
     const s = st(id);
     if (s.scene === scId && s.x === x && s.y === y) return PERSOS[id];
   }
@@ -937,6 +951,7 @@ function planGoal(a) {
   a.path = p;
 }
 function goTo(dest) {
+  if (estPorte()) return;
   const a = actor();
   a.goal = { ...dest }; a.action = null; a.path = []; marker = null;
   if (!a.moving && !busy) planGoal(a);
@@ -959,8 +974,7 @@ function doAction(a) {
   a.dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
   const o = otherAt(a.scene, tx, ty);
   if (o) {
-    if (NET.online[o.id]) say(`C'est ${o.nom} ! ${o.fem ? 'Elle' : 'Il'} est en ligne en ce moment.`);
-    else say(`C'est ${o.nom} ! ${o.fem ? 'Elle' : 'Il'} attend sans bouger.\n(${o.fem ? 'Elle' : 'Il'} n'est pas connecté${o.fem ? 'e' : ''}.)`);
+    openPersoMenu(o.id);
     return;
   }
   const d = tileDef(a.scene, tx, ty);
@@ -968,6 +982,7 @@ function doAction(a) {
   if (tileChar(a.scene, tx, ty) === 'c') cageExcite = performance.now() + 2500;
 }
 function onTap(tx, ty) {
+  if (estPorte()) return;
   const a = actor();
   const d = tileDef(a.scene, tx, ty);
   if (!d) return;
@@ -982,6 +997,7 @@ function onTap(tx, ty) {
   a.path = path; marker = { x: tx, y: ty };
 }
 function interactFront() {
+  if (estPorte()) return;
   const a = actor(); if (a.moving) return;
   const [dx, dy] = DIRV[a.dir], tx = a.x + dx, ty = a.y + dy;
   const d = tileDef(a.scene, tx, ty);
@@ -997,6 +1013,7 @@ const KEYMAP = { arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright
 /* ---------- Boucle principale ---------- */
 function update(dt) {
   if (busy || dlg.open || panelOpen()) return;
+  if (CARRY && CARRY.porte === cur) return;     // on est porté : on ne marche pas
   const a = actor();
   if (a.moving) {
     a.t += dt / STEP_TIME;
@@ -1039,6 +1056,7 @@ function render(now) {
   cx = mw <= vw ? (mw - vw) / 2 : Math.max(0, Math.min(cx, mw - vw));
   cy = mh <= vh ? (mh - vh) / 2 : Math.max(0, Math.min(cy, mh - vh));
   cam.x = Math.round(cx); cam.y = Math.round(cy);
+  if (shakeUntil > now) { cam.x += Math.round(Math.random() * 4 - 2); cam.y += Math.round(Math.random() * 4 - 2); }
 
   ctx.drawImage(sc.canvas, -cam.x, -cam.y);
   drawCages(a.scene, now);
@@ -1054,15 +1072,17 @@ function render(now) {
   drawAnimals(a.scene, now);
 
   // personnages présents dans la scène (triés par profondeur)
-  const here = Object.keys(PERSOS).map(st).filter(s => s.scene === a.scene)
+  const here = Object.keys(PERSOS).map(st).filter(s => s.scene === a.scene && !(CARRY && CARRY.porte === s.id))
     .map(s => ({ s, p: actorPx(s) })).sort((u, v) => u.p.y - v.p.y);
   for (const { s, p } of here) {
-    const sx = Math.round(p.x - cam.x), sy = Math.round(p.y - cam.y);
+    const [fxX, fxY] = fxOffset(s.id, now);
+    const sx = Math.round(p.x - cam.x) + fxX, sy = Math.round(p.y - cam.y) + fxY;
     let f = 0;
     if (s.moving && s.t < 0.5) f = s.steps % 2 ? 1 : 2;
     ctx.fillStyle = 'rgba(0,0,0,.22)';
     ctx.fillRect(sx + 4, sy + 13, 8, 3); ctx.fillRect(sx + 3, sy + 14, 10, 1);
     ctx.drawImage(SPRITES[s.id][s.dir][f], sx, sy - 4);
+    drawPersoFx(s, sx, sy, now);
     // hautes herbes devant les jambes
     const tx = Math.round(p.x / TS), ty = Math.round(p.y / TS);
     if (tileChar(a.scene, tx, ty) === ',') ctx.drawImage(sc.canvas, tx * TS, ty * TS + 10, TS, 6, tx * TS - cam.x, ty * TS + 10 - cam.y, TS, 6);
@@ -1226,7 +1246,18 @@ function buildAnimalSprites(an) {
 function animalSpots(an) {
   if (an.spots) return an.spots;
   const sc = SCENES[an.scene], out = [];
-  sc.map.forEach((row, y) => { for (let x = 0; x < row.length; x++) if ('.,*='.includes(row[x]) && walkable(an.scene, x, y)) out.push([x, y]); });
+  // cases reliées au chemin principal (pas de coin isolé)
+  const W = sc.map[0].length, H = sc.map.length, seen = new Set(), q = [[5, 8]];
+  seen.add('5,8');
+  while (q.length) {
+    const [x, y] = q.shift();
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H || seen.has(k) || !walkable(an.scene, nx, ny)) continue;
+      seen.add(k); q.push([nx, ny]);
+    }
+  }
+  sc.map.forEach((row, y) => { for (let x = 0; x < row.length; x++) if ('.,*='.includes(row[x]) && seen.has(x + ',' + y)) out.push([x, y]); });
   return (an.spots = out);
 }
 function animalWaypoint(an, seg) { const sp = animalSpots(an); return sp[hash(seg, an.salt) % sp.length]; }
@@ -1406,7 +1437,7 @@ function drawBubbles(here, now) {
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (running) { updateOthers(dt); update(dt); render(now); updateHud(); }
+  if (running) { updateOthers(dt); updateCarry(); update(dt); render(now); updateHud(); }
   requestAnimationFrame(loop);
 }
 
@@ -1609,10 +1640,11 @@ function login(id) {
   showScreen('screen-game');
   resize(); updateHud(true);
   running = true;
-  netPresence(true); refreshOnlineUi(); renderChat();
+  netPresence(true); refreshOnlineUi(); renderChat(); refreshCarryUi(); checkCarry();
   say(`Salut ${me().nom} !\nTouche l'écran pour te déplacer, ou utilise « Aller à ».`);
 }
 function logout() {
+  if (CARRY && (CARRY.porteur === cur || CARRY.porte === cur)) poser();
   const a = actor();
   if (a) { a.path = []; a.goal = null; a.action = null; a.moving = false; a.fromX = a.x; a.fromY = a.y; }
   writeSave();
@@ -1721,7 +1753,7 @@ function applyRemote(all) {
 /* Fait marcher l'autre perso jusqu'à sa position reçue */
 function updateOthers(dt) {
   for (const id in PERSOS) {
-    if (id === cur) continue;
+    if (id === cur || (CARRY && CARRY.porte === id)) continue;
     const s = st(id);
     if (s.moving) {
       s.t += dt / STEP_TIME;
@@ -1867,6 +1899,175 @@ function chatStart() {
   });
 }
 
+/* ---------- Porter / frapper l'autre perso ----------
+   Réseau :  <racine>/action = dernier coup  { id, type:'frappe', de, vers, dir }
+             <racine>/porte  = qui porte qui { id, actif, porteur, porte, (scene, x, y, dir) }  */
+const FX = {};                     // effets visuels par perso : coup donné / coup reçu
+const rid = () => Math.random().toString(36).slice(2);
+let shakeUntil = 0, actionLu = null, actionPremier = true, porteLu = null, persoMenu = null;
+const estPorte = () => {
+  if (!(CARRY && CARRY.porte === cur)) return false;
+  toast(`${PERSOS[CARRY.porteur].nom} te porte ! Touche « Descendre ».`);
+  return true;
+};
+
+function fxOffset(id, now) {
+  const f = FX[id];
+  if (f && f.punch && f.punch.until > now) { const [dx, dy] = DIRV[f.punch.dir]; return [dx * 4, dy * 4]; }
+  if (f && f.hit && f.hit.until > now) return [Math.floor(now / 50) % 2 ? 1 : -1, 0];
+  return [0, 0];
+}
+function drawPersoFx(s, sx, sy, now) {
+  const f = FX[s.id];
+  // étoiles qui tournent au-dessus de la tête quand on a reçu un coup
+  if (f && f.hit && f.hit.until > now) {
+    ctx.fillStyle = '#f8e040';
+    for (let k = 0; k < 3; k++) {
+      const ang = now / 160 + k * 2.1;
+      ctx.fillRect(Math.round(sx + 7 + Math.cos(ang) * 6), Math.round(sy - 7 + Math.sin(ang) * 2), 2, 2);
+    }
+  }
+  // le perso porté, allongé au-dessus de la tête du porteur
+  if (CARRY && CARRY.porteur === s.id && PERSOS[CARRY.porte]) {
+    const bob = s.moving && s.t < 0.5 ? 1 : 0;
+    ctx.save();
+    ctx.translate(sx + 8, sy - 9 + bob);
+    ctx.rotate(s.dir === 'left' ? -Math.PI / 2 : Math.PI / 2);
+    ctx.drawImage(SPRITES[CARRY.porte].down[0], -8, -10);
+    ctx.restore();
+  }
+}
+function occupe(scId, x, y, sauf) {
+  return Object.keys(PERSOS).some(id => id !== sauf && !(CARRY && CARRY.porte === id) && st(id).scene === scId && st(id).x === x && st(id).y === y);
+}
+function pousseServeur(id) {
+  if (!NET.db) return;
+  const s = st(id);
+  NET.db.ref(DB_ROOT + '/persos/' + id).set({ scene: s.scene, x: s.x, y: s.y, dir: s.dir, tenue: { ...PERSOS[id].tenue } }).catch(() => {});
+}
+
+/* menu quand on touche l'autre perso */
+function openPersoMenu(id) {
+  const o = PERSOS[id]; persoMenu = id;
+  $('perso-title').textContent = o.nom;
+  paintSprite($('perso-avatar'), id);
+  $('perso-info').innerHTML = NET.online[id] ? '&#9679; En ligne' : `&#9675; Hors ligne<br>(${o.fem ? 'elle' : 'il'} ne bouge pas)`;
+  $('btn-porter').disabled = !!CARRY;
+  held.length = 0;
+  $('panel-perso').classList.remove('hidden');
+}
+function aCote(id) {
+  const a = actor(), o = st(id);
+  return o.scene === a.scene && Math.abs(o.x - a.x) + Math.abs(o.y - a.y) === 1;
+}
+$('btn-frapper').addEventListener('click', () => { closePanels(); frapper(persoMenu); });
+$('btn-porter').addEventListener('click', () => { closePanels(); porter(persoMenu); });
+
+/* frapper */
+function hitFx(victime, auteur, dir) {
+  const now = performance.now();
+  FX[auteur] = { ...(FX[auteur] || {}), punch: { until: now + 220, dir } };
+  FX[victime] = { ...(FX[victime] || {}), hit: { until: now + 1300 } };
+  PERSOS[victime].bubble = { text: pick(['Aïe !', 'Ouch !', 'Hé !!', 'Ouille !']), until: now + 1800 };
+}
+function recul(s, dir) {                   // on recule d'une case sous le coup
+  if (s.moving) return false;
+  const [dx, dy] = DIRV[dir], nx = s.x + dx, ny = s.y + dy;
+  if (!walkable(s.scene, nx, ny) || occupe(s.scene, nx, ny, s.id)) return false;
+  if (s.id === cur) { s.path = []; s.goal = null; s.action = null; marker = null; }
+  startMove(s, [nx, ny]);
+  s.dir = { up: 'down', down: 'up', left: 'right', right: 'left' }[dir];
+  s.net = null;
+  return true;
+}
+function frapper(id) {
+  if (!id || CARRY) return;
+  if (!aCote(id)) { toast('Trop loin !'); return; }
+  const a = actor(), o = st(id), dx = o.x - a.x, dy = o.y - a.y;
+  const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
+  a.dir = dir;
+  hitFx(id, cur, dir);
+  toast(`👊 Paf ! ${me().nom} frappe ${PERSOS[id].nom} !`);
+  // si l'autre n'est pas connecté, c'est nous qui le faisons reculer
+  if (!NET.online[id] && recul(o, dir)) pousseServeur(id);
+  actionLu = rid();
+  if (NET.db) NET.db.ref(DB_ROOT + '/action').set({ id: actionLu, type: 'frappe', de: cur, vers: id, dir, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+}
+function onActionDb(v) {
+  if (!v || !v.id || v.id === actionLu) { actionPremier = false; return; }
+  actionLu = v.id;
+  if (actionPremier) { actionPremier = false; return; }    // ancien coup : on ne le rejoue pas
+  if (v.type !== 'frappe' || !PERSOS[v.de] || !PERSOS[v.vers] || !DIRV[v.dir]) return;
+  hitFx(v.vers, v.de, v.dir);
+  if (v.vers === cur && running) {
+    if (!CARRY) recul(actor(), v.dir);
+    shakeUntil = performance.now() + 300;
+    toast(`💥 ${PERSOS[v.de].nom} t'a frappé${me().fem ? 'e' : ''} !`);
+  }
+}
+
+/* porter */
+function porter(id) {
+  if (!id || CARRY) return;
+  if (!aCote(id)) { toast('Trop loin !'); return; }
+  setCarry({ id: rid(), actif: true, porteur: cur, porte: id }, true);
+  toast(`🤗 ${me().nom} porte ${PERSOS[id].nom} !`);
+}
+function setCarry(v, envoyer) {
+  CARRY = { porteur: v.porteur, porte: v.porte, id: v.id };
+  porteLu = v.id;
+  st(v.porte).net = null;
+  if (envoyer && NET.db) NET.db.ref(DB_ROOT + '/porte').set({ ...v, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+  refreshCarryUi();
+}
+function updateCarry() {           // le perso porté suit son porteur
+  if (!CARRY) return;
+  const c = st(CARRY.porteur), p = st(CARRY.porte);
+  Object.assign(p, { scene: c.scene, x: c.x, y: c.y, fromX: c.fromX, fromY: c.fromY, t: c.t, moving: c.moving, steps: c.steps, path: [], net: null });
+}
+function poser() {                 // le porteur pose, ou le porté descend
+  if (!CARRY) return;
+  const c = st(CARRY.porteur), id = CARRY.porte, [dx, dy] = DIRV[c.dir];
+  const fx = c.x + dx, fy = c.y + dy;
+  const [x, y] = walkable(c.scene, fx, fy) && !occupe(c.scene, fx, fy, id) ? [fx, fy] : nearestFree(c.scene, c.x, c.y, id);
+  const d = { id: rid(), actif: false, porteur: CARRY.porteur, porte: id, scene: c.scene, x, y, dir: c.dir };
+  applyDrop(d);
+  if (NET.db) {
+    NET.db.ref(DB_ROOT + '/porte').set({ ...d, t: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+    pousseServeur(id);
+  }
+}
+function applyDrop(d) {
+  const s = st(d.porte);
+  if (SCENES[d.scene] && tileDef(d.scene, d.x, d.y)) snapTo(s, d);
+  CARRY = null; porteLu = d.id;
+  if (d.porte === cur) { writeSave(); updateHud(true); }
+  refreshCarryUi();
+}
+function onPorteDb(v) {
+  if (!v || !v.id) { if (CARRY) { CARRY = null; refreshCarryUi(); } return; }
+  if (v.id === porteLu) return;
+  if (!v.actif) { if (PERSOS[v.porte]) applyDrop(v); else { CARRY = null; refreshCarryUi(); } return; }
+  if (!PERSOS[v.porteur] || !PERSOS[v.porte]) return;
+  setCarry(v, false);
+  if (v.porte === cur && running) {
+    const a = actor(); a.path = []; a.goal = null; a.action = null; marker = null; closePanels();
+    toast(`🤗 ${PERSOS[v.porteur].nom} te porte !`);
+  }
+  checkCarry();
+}
+// si on est porté par quelqu'un qui n'est plus connecté, on descend tout seul
+function checkCarry() {
+  if (CARRY && cur && CARRY.porte === cur && NET.ready && !NET.online[CARRY.porteur]) poser();
+}
+function refreshCarryUi() {
+  const b = $('carry-btn');
+  if (CARRY && cur && CARRY.porteur === cur) { b.textContent = `⬇ Poser ${PERSOS[CARRY.porte].nom}`; b.classList.remove('hidden'); }
+  else if (CARRY && cur && CARRY.porte === cur) { b.textContent = '⬆ Descendre'; b.classList.remove('hidden'); }
+  else b.classList.add('hidden');
+}
+$('carry-btn').addEventListener('click', () => poser());
+
 function netStart() {
   if (typeof firebase === 'undefined') { console.warn('Firebase non chargé : mode hors ligne'); return; }
   try {
@@ -1884,8 +2085,11 @@ function netStart() {
     }
     NET.ready = true;
     refreshOnlineUi();
+    checkCarry();
   });
   chatStart();
+  NET.db.ref(DB_ROOT + '/action').on('value', snap => onActionDb(snap.val()));
+  NET.db.ref(DB_ROOT + '/porte').on('value', snap => onPorteDb(snap.val()));
   NET.db.ref('.info/serverTimeOffset').on('value', snap => { NET.offset = snap.val() || 0; });
   NET.db.ref(DB_ROOT + '/animaux').on('value', snap => onAnimauxDb(snap.val() || {}));
   // après une coupure réseau, on se redéclare « en ligne »

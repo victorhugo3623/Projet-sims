@@ -312,6 +312,16 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 #chat-send:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 
+/* ---------- Porter / frapper ---------- */
+#perso-avatar { width: 64px; height: 80px; }
+.dest:disabled { opacity: .45; }
+#perso-info { font-size: 8px; line-height: 2; text-align: center; color: #444; }
+#carry-btn {
+  position: absolute; right: 8px;
+  bottom: calc(170px + env(safe-area-inset-bottom));
+  padding: 12px 14px; font-size: 9px; z-index: 6;
+}
+
 /* ---------- Animaux ---------- */
 .animal-top { display: flex; justify-content: center; align-items: flex-end; height: 70px; background: #a3d873; border: 3px solid var(--ink); border-radius: 8px; padding-bottom: 8px; }
 #animal-info { font-size: 8px; line-height: 2; text-align: center; color: #444; }

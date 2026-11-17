@@ -68,6 +68,8 @@
 
     <div id="toast" class="box sm"></div>
 
+    <button id="carry-btn" class="box sm hidden"></button>
+
     <!-- Tchat global toujours visible -->
     <div id="chat-feed">
       <div class="feed-head">
@@ -128,6 +130,20 @@
         <div class="animal-btns">
           <button class="dest" id="btn-caresser">&#10084;&#65039; Caresser</button>
           <button class="dest" id="btn-nourrir">&#127830; Nourrir</button>
+        </div>
+        <button class="btn-close">Fermer</button>
+      </div>
+    </div>
+
+    <!-- Panneau : l'autre perso (porter / frapper) -->
+    <div id="panel-perso" class="panel hidden">
+      <div class="box panel-box">
+        <h2 id="perso-title"></h2>
+        <div class="info-top"><canvas id="perso-avatar" width="16" height="20"></canvas></div>
+        <p id="perso-info"></p>
+        <div class="animal-btns">
+          <button class="dest" id="btn-porter">&#129303; Porter</button>
+          <button class="dest" id="btn-frapper">&#128074; Frapper</button>
         </div>
         <button class="btn-close">Fermer</button>
       </div>
