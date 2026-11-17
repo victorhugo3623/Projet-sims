@@ -11,7 +11,8 @@ Mini-jeu 2D façon Game Boy Color, jouable dans le navigateur (téléphone et PC
 - **Tenue** : change les couleurs des vêtements. Touche ton avatar pour voir ta fiche.
 - Sur PC : flèches / ZQSD pour marcher, Espace ou Entrée pour interagir, T pour le tchat.
 - Touche l'autre perso pour le **porter** (🤗) ou le **frapper** (👊).
-- **Rex** (chien kangal) et **Caramel** (chat) se baladent dans le quartier : touche-les pour les caresser ou les nourrir.
+- **Rex** (chien kangal) et **Caramel** (chat) se baladent dans le quartier : touche-les pour les caresser ou les nourrir ; Rex peut être attaché en laisse pour te suivre.
+- Dans la cuisine : Kinder Bueno White et tiramisu à manger.
 - **💬 Tchat** : écris à l'autre perso ; le message s'affiche aussi dans une bulle au-dessus de ta tête.
 
 ## Fichiers

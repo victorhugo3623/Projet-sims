@@ -50,10 +50,21 @@ const PERSOS = {
 
 /* Couleurs proposées dans le menu « Tenue » */
 const COULEURS_TENUE = {
-  haut:       ['#3a6cc0', '#d04f78', '#e04040', '#3f9f5f', '#f0c030', '#f2f2f2', '#303038', '#8050c0', '#f08a30'],
-  bas:        ['#2e3550', '#4a5aa8', '#303038', '#8a6a48', '#c8c8c8', '#5a7a3a', '#a03838', '#f2f2f2'],
+  haut:       ['#3a6cc0', '#d04f78', '#e04040', '#f0c030', '#f2f2f2', '#303038', '#8050c0', '#f08a30'],
+  bas:        ['#2e3550', '#4a5aa8', '#303038', '#8a6a48', '#c8c8c8', '#a03838', '#f2f2f2'],
   chaussures: ['#f2f2f2', '#ffffff', '#303038', '#8a5a32', '#e04040', '#3a6cc0', '#f0c030'],
 };
+
+/* Tenue de départ de chaque perso (utilisée si une couleur n'existe plus) */
+const TENUE_DEFAUT = Object.fromEntries(Object.keys(PERSOS).map(id => [id, { ...PERSOS[id].tenue }]));
+function tenuePropre(id, t) {
+  const out = {};
+  for (const k of ['haut', 'bas', 'chaussures']) {
+    const c = t && typeof t[k] === 'string' ? t[k] : '';
+    out[k] = COULEURS_TENUE[k].some(x => x.toLowerCase() === c.toLowerCase()) ? c : TENUE_DEFAUT[id][k];
+  }
+  return out;
+}
 
 /* ==============================================================
    2) DESTINATIONS du menu « Aller à »
@@ -74,6 +85,7 @@ const DESTINATIONS = [
                D porte maison  E porte école  S porte salle de sport
    INTÉRIEUR : # mur  _ parquet  : carrelage  ; sol école  - sol sport
                X sortie  m tapis  g tapis de sol
+               J Kinder Bueno White  G tiramisu
                K frigo  C plan de travail  O cuisinière  L évier
                A table  h chaise  q/Q canapé  V télé  b/n lit
                z armoire  i table de chevet  k étagère  P plante
@@ -120,7 +132,7 @@ const SCENES = {
     wall: { face: '#ead8b4', stripe: '#dcc79c', top: '#6a4e38', base: '#a07850' },
     map: [
       '################',
-      '#KCOCL:#z_P__bi#',
+      '#KJOGL:#z_P__bi#',
       '#::::::#_____n_#',
       '#:hAAh:#__mm___#',
       '#::hh::#_______#',
@@ -433,7 +445,7 @@ function exitMat(i) {
 }
 
 /* ----- Meubles ----- */
-const KITCHEN = 'KCOL';
+const KITCHEN = 'KCOLJG';
 function sideEdges(i, set, dark, y, h) {
   if (!has(i.at(-1, 0), set)) R(dark, 0, y, 1, h);
   if (!has(i.at(1, 0), set)) R(dark, 15, y, 1, h);
@@ -450,6 +462,21 @@ function counter(i) {
   R('#b07840', 1, 6, 14, 9); R('#7a4a24', 7, 6, 1, 9); R('#7a4a24', 8, 6, 1, 9);
   R('#f0d060', 5, 9, 1, 1); R('#f0d060', 10, 9, 1, 1);
   sideEdges(i, KITCHEN, '#4a3020', 1, 15);
+}
+function kinder(i) {             // 2 barres de Kinder Bueno White sur le plan de travail
+  counter(i);
+  for (const [x, y] of [[2, 1], [4, 3]]) {
+    R('#9a8e80', x - 1, y, 12, 2);
+    R('#fbfaf6', x, y, 10, 1); R('#dcd6cc', x, y + 1, 10, 1);
+    R('#d03030', x + 1, y, 3, 1); R('#7a4420', x + 5, y, 1, 1); R('#7a4420', x + 7, y, 1, 1);
+  }
+}
+function tiramisu(i) {           // un plat de tiramisu
+  counter(i);
+  R('#9fb2c0', 1, 0, 14, 6); R('#d8e4ec', 2, 0, 12, 5);
+  R('#6a3a1e', 3, 1, 10, 1); R('#f4ead0', 3, 2, 10, 1); R('#c89a5a', 3, 3, 10, 1);
+  R('#4a2612', 5, 1, 1, 1); R('#4a2612', 9, 1, 1, 1); R('#4a2612', 11, 1, 1, 1);
+  R('#f4ead0', 10, 1, 3, 1);       // une part déjà mangée
 }
 function stove(i) {
   counter(i);
@@ -624,6 +651,16 @@ tile('X', { solid: false, door: 'exit', draw: exitMat });
 
 // Maison
 tile('K', { ...FURN, under: ':', draw: fridge, msg: ['{n} ouvre le frigo… Il y a du fromage et des yaourts.', 'Le frigo ronronne doucement.'] });
+tile('J', { ...FURN, under: ':', draw: kinder, miam: true, msg: [
+  '{n} prend un Kinder Bueno White… croustillant et fondant, trop bon !',
+  '{n} croque dans un Kinder Bueno White. Miam !',
+  'Encore un Kinder Bueno White ? Allez, {n} en mange un dernier… promis !',
+] });
+tile('G', { ...FURN, under: ':', draw: tiramisu, miam: true, msg: [
+  '{n} mange une part de tiramisu. Un délice !',
+  '{n} se sert du tiramisu : cacao, mascarpone, biscuit… parfait !',
+  'Le tiramisu est trop bon, {n} en reprend une petite part.',
+] });
 tile('C', { ...FURN, under: ':', draw: counter, msg: ['Le plan de travail est tout propre.'] });
 tile('O', { ...FURN, under: ':', draw: stove, msg: ['{n} se prépare un petit plat. Ça sent bon !'] });
 tile('L', { ...FURN, under: ':', draw: sink, msg: ['{n} fait la vaisselle. Quelle corvée !'] });
@@ -879,7 +916,7 @@ function loadSave() {
   try { s = JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch (e) { s = {}; }
   for (const id in PERSOS) {
     const p = PERSOS[id], d = s[id] || {};
-    if (d.tenue) Object.assign(p.tenue, d.tenue);
+    if (d.tenue) Object.assign(p.tenue, tenuePropre(id, d.tenue));
     const ok = d.scene && SCENES[d.scene] && walkable(d.scene, d.x, d.y);
     const pos = ok ? d : p.depart;
     p.state = {
@@ -980,6 +1017,7 @@ function doAction(a) {
   const d = tileDef(a.scene, tx, ty);
   if (d && d.msg) say(pick(d.msg).replace(/\{n\}/g, me().nom));
   if (tileChar(a.scene, tx, ty) === 'c') cageExcite = performance.now() + 2500;
+  if (d && d.miam) me().bubble = { text: 'Miam !', until: performance.now() + 2500 };
 }
 function onTap(tx, ty) {
   if (estPorte()) return;
@@ -1208,7 +1246,7 @@ const SPRITE_CHAT = {
 };
 const ANIMAUX = {
   rex: {
-    id: 'rex', nom: 'Rex', espece: 'Chien kangal', scene: 'town',
+    id: 'rex', nom: 'Rex', espece: 'Chien kangal', scene: 'town', laisseOk: true,
     step: 0.38, seg: 28000, salt: 101, sprite: SPRITE_CHIEN, gamelle: '#d04040', croquettes: '#a8683a',
     pal: { E: '#2a2420', H: '#dcbc8c', e: '#140e0a', M: '#2a2420', m: '#5a2a24', B: '#dcbc8c', D: '#c8a46e', S: '#efdcb4', T: '#c8a46e', L: '#c8a46e', P: '#a8844e' },
     msgs: {
@@ -1277,7 +1315,17 @@ function animalPath(an, seg) {
   return r;
 }
 // position de l'animal à un instant donné (heure serveur)
-function animalState(an, t = serverNow()) {
+// en laisse : il suit la personne qui le tient ; sinon il se balade
+const laisseActive = an => !!(an.laisse && PERSOS[an.laisse] && PERSOS[an.laisse].state && (an.laisse === cur || !NET.db || NET.online[an.laisse]));
+const animalScene = an => (laisseActive(an) && an.follow ? an.follow.scene : an.scene);
+function animalState(an, t) {
+  if (laisseActive(an) && an.follow) {
+    const f = an.follow, k = f.moving ? f.t : 1;
+    return { x: f.fromX + (f.x - f.fromX) * k, y: f.fromY + (f.y - f.fromY) * k, moving: f.moving, face: f.face, frame: f.moving ? (f.t < 0.5 ? 1 : 2) : 0 };
+  }
+  return balade(an, t === undefined ? serverNow() : t);
+}
+function balade(an, t) {
   const seg = Math.floor(t / an.seg), { path, face } = animalPath(an, seg);
   const i = ((t - seg * an.seg) / 1000) / an.step;
   if (i >= path.length - 1) { const [x, y] = path[path.length - 1]; return { x, y, moving: false, face, frame: 0 }; }
@@ -1289,7 +1337,7 @@ function animalState(an, t = serverNow()) {
 function animalAt(scId, tx, ty) {
   for (const id in ANIMAUX) {
     const an = ANIMAUX[id];
-    if (an.scene !== scId) continue;
+    if (animalScene(an) !== scId) continue;
     const st = animalState(an);
     if (Math.round(st.x) === tx && Math.round(st.y) === ty) return an;
   }
@@ -1297,10 +1345,74 @@ function animalAt(scId, tx, ty) {
 }
 
 const HEART = ['.X.X.', 'XXXXX', 'XXXXX', '.XXX.', '..X..'];
+const st0 = id => PERSOS[id].state;
+function ligne(x0, y0, x1, y1, c) {           // trait en pixels (algorithme de Bresenham)
+  ctx.fillStyle = c;
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let e = dx + dy, n = 0;
+  while (n++ < 200) {
+    ctx.fillRect(x0, y0, 1, 1);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * e;
+    if (e2 >= dy) { e += dy; x0 += sx; }
+    if (e2 <= dx) { e += dx; y0 += sy; }
+  }
+}
+// une case libre à côté du maître (derrière lui de préférence)
+function presDe(L) {
+  const back = { up: [0, 1], down: [0, -1], left: [1, 0], right: [-1, 0] }[L.dir] || [0, 1];
+  for (const [dx, dy] of [back, [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const x = L.x + dx, y = L.y + dy;
+    if (walkable(L.scene, x, y) && !occupe(L.scene, x, y, null)) return [x, y];
+  }
+  return [L.x, L.y];
+}
+// Rex suit son maître : il marche sur la case que le maître vient de quitter
+function updateLaisse(dt) {
+  for (const id in ANIMAUX) {
+    const an = ANIMAUX[id];
+    if (!laisseActive(an)) { an.follow = null; an.prevL = null; an.lastL = null; continue; }
+    const L = st0(an.laisse);
+    if (!an.follow) {
+      const b = balade(an, serverNow());
+      let x = Math.round(b.x), y = Math.round(b.y);
+      if (an.scene !== L.scene || Math.abs(x - L.x) + Math.abs(y - L.y) > 8) [x, y] = presDe(L);
+      an.follow = { scene: an.scene === L.scene ? an.scene : L.scene, x, y, fromX: x, fromY: y, t: 0, moving: false, face: b.face };
+    }
+    const f = an.follow;
+    // retenir la dernière case quittée par le maître
+    const k = L.scene + ',' + L.x + ',' + L.y;
+    if (an.lastL !== k) {
+      if (an.lastL && an.lastL.startsWith(L.scene + ',')) { const [, px, py] = an.lastL.split(','); an.prevL = [+px, +py]; }
+      else an.prevL = null;
+      an.lastL = k;
+    }
+    if (f.moving) { f.t += dt / 0.2; if (f.t < 1) continue; f.moving = false; f.t = 0; }
+    if (f.scene !== L.scene) {          // le maître a passé une porte : Rex le rejoint
+      const [x, y] = an.prevL || presDe(L);
+      Object.assign(f, { scene: L.scene, x, y, fromX: x, fromY: y, moving: false, t: 0 });
+      continue;
+    }
+    const near = Math.abs(f.x - L.x) + Math.abs(f.y - L.y);
+    if (near === 1 || !an.prevL) {
+      if (near === 0) { const [x, y] = presDe(L); Object.assign(f, { fromX: f.x, fromY: f.y, x, y, moving: true, t: 0 }); }
+      continue;
+    }
+    const [tx, ty] = an.prevL;
+    if (f.x === tx && f.y === ty) continue;
+    let next = null;
+    if (Math.abs(tx - f.x) + Math.abs(ty - f.y) === 1) next = [tx, ty];
+    else if (near <= 10) { const p = findPath(f.scene, f.x, f.y, [[tx, ty]]); if (p && p.length) next = p[0]; }
+    if (!next) { Object.assign(f, { x: tx, y: ty, fromX: tx, fromY: ty, moving: false, t: 0 }); continue; }
+    const ddx = next[0] - f.x;
+    if (ddx) f.face = ddx > 0 ? 'right' : 'left';
+    Object.assign(f, { fromX: f.x, fromY: f.y, x: next[0], y: next[1], moving: true, t: 0 });
+  }
+}
 function drawAnimals(scId, now) {
   for (const id in ANIMAUX) {
     const an = ANIMAUX[id];
-    if (an.scene !== scId) continue;
+    if (animalScene(an) !== scId) continue;
     const st = animalState(an);
     const px = Math.round(st.x * TS - cam.x + (TS - an.w) / 2), py = Math.round(st.y * TS - cam.y + 15 - an.h);
     // ombre
@@ -1317,6 +1429,12 @@ function drawAnimals(scId, now) {
     const joie = fx && fx.type === 'caresse' && Math.floor(now / 150) % 2 ? 1 : 0;
     const mange = fx && fx.type === 'nourrit' && Math.floor(now / 250) % 2 ? 1 : 0;
     ctx.drawImage(an.img[st.moving ? st.frame : 0][st.face], px, py - joie + mange);
+    if (laisseActive(an) && an.follow) {
+      const L = st0(an.laisse), lp = actorPx(L);
+      const hx = Math.round(lp.x - cam.x) + (L.dir === 'left' ? 3 : 12), hy = Math.round(lp.y - cam.y) + 8;
+      const nx = px + (st.face === 'left' ? 3 : an.w - 4), ny = py + 3 - joie;
+      ligne(hx, hy, nx, ny, '#c03030');
+    }
     // cœurs qui montent
     if (fx && fx.type === 'caresse') {
       const left = (fx.until - now) / 3000;
@@ -1342,7 +1460,7 @@ function interactAnimal(an) {
 function reachAnimal(a, id) {
   const an = ANIMAUX[id], s = animalState(an);
   const dx = Math.round(s.x) - a.x, dy = Math.round(s.y) - a.y;
-  if (an.scene !== a.scene || Math.abs(dx) + Math.abs(dy) > 2) { toast(`Trop tard, ${an.nom} se balade plus loin !`); return; }
+  if (animalScene(an) !== a.scene || Math.abs(dx) + Math.abs(dy) > 2) { toast(`Trop tard, ${an.nom} se balade plus loin !`); return; }
   if (dx || dy) a.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
   openAnimal(id);
 }
@@ -1355,6 +1473,13 @@ function openAnimal(id) {
   const g = c.getContext('2d'); g.clearRect(0, 0, an.w, an.h); g.drawImage(an.img[0].left, 0, 0);
   const h = an.repas ? new Date(an.repas).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
   $('animal-info').innerHTML = `${an.espece}<br>${aFaim(an) ? '&#128523; A faim !' : `&#128522; N'a plus faim (repas à ${h})`}`;
+  const bl = $('btn-laisse');
+  bl.classList.toggle('hidden', !an.laisseOk);
+  if (an.laisseOk) {
+    const autre = laisseActive(an) && an.laisse !== cur;
+    bl.disabled = autre;
+    bl.textContent = an.laisse === cur ? '🦮 Détacher' : autre ? `🦮 Tenu par ${PERSOS[an.laisse].nom}` : '🦮 Attacher';
+  }
   held.length = 0;
   $('panel-animal').classList.remove('hidden');
 }
@@ -1377,6 +1502,17 @@ function animalAct(type) {
 }
 document.getElementById('btn-caresser').addEventListener('click', () => animalAct('caresse'));
 document.getElementById('btn-nourrir').addEventListener('click', () => animalAct('nourrit'));
+document.getElementById('btn-laisse').addEventListener('click', () => {
+  const an = ANIMAUX[animalOuvert];
+  closePanels();
+  if (!an || !cur) return;
+  if (an.laisse === cur) { setLaisse(an, null); say(`${me().nom} détache ${an.nom}, qui repart se balader.`); }
+  else if (!laisseActive(an)) { setLaisse(an, cur); say(`${me().nom} attache ${an.nom} à sa laisse. On va se promener !`); }
+});
+function setLaisse(an, qui) {
+  an.laisse = qui; an.follow = null; an.prevL = null; an.lastL = null;
+  if (NET.db) NET.db.ref(DB_ROOT + '/animaux/' + an.id).update({ laisse: qui }).catch(() => {});
+}
 
 // ce que l'autre joueur fait aux animaux
 let animauxPremier = true;
@@ -1385,6 +1521,11 @@ function onAnimauxDb(v) {
     const an = ANIMAUX[id], d = v[id];
     if (!d) continue;
     if (d.repas) an.repas = d.repas;
+    const nl = d.laisse && PERSOS[d.laisse] ? d.laisse : null;
+    if (nl !== (an.laisse || null)) {
+      an.laisse = nl; an.follow = null; an.prevL = null; an.lastL = null;
+      if (!animauxPremier && running && nl && nl !== cur) toast(`${PERSOS[nl].nom} promène ${an.nom} 🦮`);
+    }
     const e = d.evt;
     if (e && e.id && e.id !== an.lastEvt) {
       an.lastEvt = e.id;
@@ -1437,7 +1578,7 @@ function drawBubbles(here, now) {
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (running) { updateOthers(dt); updateCarry(); update(dt); render(now); updateHud(); }
+  if (running) { updateOthers(dt); updateCarry(); updateLaisse(dt); update(dt); render(now); updateHud(); }
   requestAnimationFrame(loop);
 }
 
@@ -1644,6 +1785,7 @@ function login(id) {
   say(`Salut ${me().nom} !\nTouche l'écran pour te déplacer, ou utilise « Aller à ».`);
 }
 function logout() {
+  for (const id in ANIMAUX) if (ANIMAUX[id].laisse === cur) setLaisse(ANIMAUX[id], null);
   if (CARRY && (CARRY.porteur === cur || CARRY.porte === cur)) poser();
   const a = actor();
   if (a) { a.path = []; a.goal = null; a.action = null; a.moving = false; a.fromX = a.x; a.fromY = a.y; }
@@ -1737,13 +1879,14 @@ function applyRemote(all) {
       // au démarrage seulement : on reprend là où ce perso s'était arrêté (autre appareil)
       if (NET.first && !s.moving && !s.path.length && !busy) {
         snapTo(s, d);
-        if (d.tenue) { Object.assign(p.tenue, d.tenue); buildSprites(id); paintSprite(el.hudAvatar, id); }
+        if (d.tenue) { Object.assign(p.tenue, tenuePropre(id, d.tenue)); buildSprites(id); paintSprite(el.hudAvatar, id); }
         updateHud(true);
       }
       continue;
     }
-    if (d.tenue && ['haut', 'bas', 'chaussures'].some(k => d.tenue[k] && d.tenue[k] !== p.tenue[k])) {
-      Object.assign(p.tenue, d.tenue); buildSprites(id);
+    const tn = d.tenue && tenuePropre(id, d.tenue);
+    if (tn && ['haut', 'bas', 'chaussures'].some(k => tn[k] !== p.tenue[k])) {
+      Object.assign(p.tenue, tn); buildSprites(id);
     }
     if (!running) snapTo(s, d); else s.net = d;
   }
